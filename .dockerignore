@@ -1,0 +1,13 @@
+.git
+.github
+.idea
+.venv
+venv
+**/__pycache__
+.pytest_cache
+.ruff_cache
+data
+inbox
+config/config.yaml
+.env
+tests

@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>{% block title %}scansort{% endblock %}</title>
+  <link rel="stylesheet" href="/static/style.css?v={{ version }}">
+  <script src="/static/htmx.min.js?v=2.0.4" defer></script>
+  <script src="/static/app.js?v={{ version }}" defer></script>
+</head>
+<body hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}' class="{% block body_class %}{% endblock %}">
+  {% if user %}
+  <header class="topbar">
+    <a class="brand" href="/">scansort</a>
+    <nav>
+      <a href="/" class="{{ 'active' if request.url.path == '/' }}">Review</a>
+      <a href="/status" class="{{ 'active' if request.url.path == '/status' }}">Status</a>
+    </nav>
+    <form method="post" action="/logout" class="logout">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button class="link">Log out</button>
+    </form>
+  </header>
+  {% endif %}
+  <main class="{% block main_class %}container{% endblock %}">
+    {% for kind, msg in flashes %}
+      <div class="flash flash-{{ kind }}">{{ msg }}</div>
+    {% endfor %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

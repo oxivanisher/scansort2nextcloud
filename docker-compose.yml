@@ -1,0 +1,34 @@
+# Example deployment: an FTP server for the scanner + scansort.
+# 1. cp config/config.example.yaml config/config.yaml   (and edit it)
+# 2. cp .env.example .env                                (and fill in the secrets)
+# 3. docker compose up -d
+services:
+  ftp:
+    image: delfer/alpine-ftp-server      # or any FTP server image
+    restart: unless-stopped
+    environment:
+      USERS: "scanner|${FTP_PASSWORD}|/home/scanner|1000"
+      ADDRESS: ${FTP_PUBLIC_ADDRESS:-}
+    volumes:
+      - ./inbox:/home/scanner
+    ports:
+      - "21:21"
+      - "21000-21010:21000-21010"
+
+  scansort:
+    image: ghcr.io/oxivanisher/scansort2nextcloud:latest
+    # build: .                           # or build locally
+    restart: unless-stopped
+    environment:
+      PUID: 1000                         # must be able to read/delete files the FTP server writes
+      PGID: 1000
+      TZ: Europe/Zurich
+      SCANSORT_NEXTCLOUD__PASSWORD: ${NC_APP_PASSWORD}
+      SCANSORT_WEBUI__PASSWORD_HASH: ${WEBUI_PASSWORD_HASH}
+      SCANSORT_WEBUI__SESSION_SECRET: ${SESSION_SECRET}
+    volumes:
+      - ./config:/config:ro
+      - ./data:/data
+      - ./inbox:/data/inbox
+    ports:
+      - "8080:8080"

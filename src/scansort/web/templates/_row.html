@@ -1,0 +1,37 @@
+{% set top = doc.top_proposal %}
+<tr id="doc-{{ doc.id }}" class="doc-row{% if doc.status != 'pending' %} done{% endif %}">
+  <td class="thumb"><a href="/doc/{{ doc.id }}"><img src="/doc/{{ doc.id }}/thumb" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'nothumb',textContent:'PDF'}))"></a></td>
+  <td>
+    <a class="docname" href="/doc/{{ doc.id }}">{{ doc.proposed_name }}</a>
+    <div class="meta">
+      {{ doc.doc_date or '' }}{% if doc.doc_date_guessed %} <span class="badge muted" title="No date found in the text; using the scan date">guessed</span>{% endif %}
+      {% if doc.sender %} · {{ doc.sender }}{% endif %}
+      {% if doc.amount %} · {{ doc.amount }}{% endif %}
+      · {{ doc.page_count }} p.
+      {% if doc.text_source == 'none' %} <span class="badge warn" title="No text could be extracted">no text</span>{% endif %}
+      {% if doc.duplicate_of %} <span class="badge dup" title="Same file as document #{{ doc.duplicate_of }}">duplicate</span>{% endif %}
+    </div>
+  </td>
+  <td class="proposal">
+    {% if doc.status == 'filed' %}
+      <span class="ok">✓ Filed to {{ doc.final_path }}</span>
+    {% elif top %}
+      <div>{{ resolve(top.label, doc.doc_date) }}{% if top.source == 'rule' %} <span class="badge">rule</span>{% endif %}</div>
+      <div class="confbar" title="{{ top.probability|pct }}"><span style="width: {{ (top.probability * 100)|round(0) }}%"></span></div>
+    {% else %}
+      <span class="muted">no proposal</span>
+    {% endif %}
+    {% if error %}<div class="error">{{ error }}</div>{% endif %}
+  </td>
+  <td class="actions">
+    {% if doc.status == 'pending' %}
+      {% if top %}
+      <form method="post" action="/doc/{{ doc.id }}/accept" hx-post="/doc/{{ doc.id }}/accept" hx-target="#doc-{{ doc.id }}" hx-swap="outerHTML" hx-disabled-elt="find button">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+        <button class="primary">Accept</button>
+      </form>
+      {% endif %}
+      <a class="button" href="/doc/{{ doc.id }}">Open</a>
+    {% endif %}
+  </td>
+</tr>

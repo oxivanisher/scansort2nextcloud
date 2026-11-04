@@ -1,0 +1,68 @@
+# scansort configuration. Copy to config/config.yaml and adjust.
+# Every key can be overridden by an environment variable: prefix SCANSORT_, nested keys joined
+# with "__", e.g. SCANSORT_NEXTCLOUD__PASSWORD. Secrets also work as files: SCANSORT_..._FILE.
+
+data_dir: /data                 # SQLite DB, model, temp files
+
+watch:
+  dir: /data/inbox              # folder the FTP server writes into
+  patterns: ["*.pdf"]
+  stable_seconds: 5             # file must be unchanged this long before it is processed
+  poll_interval: 10             # polling fallback in addition to inotify
+
+ingest:
+  concurrency: 1                # OCR is CPU-heavy; keep at 1 on small hosts
+
+nextcloud:
+  url: https://cloud.example.ch
+  user: scanbot                 # dedicated machine account
+  password: ""                  # app password! set via SCANSORT_NEXTCLOUD__PASSWORD
+  root: /Dokumente              # documents tree, as seen by the machine account
+  review_folder: /Dokumente/_Review
+  trash_folder: null            # null = WebDAV DELETE (Nextcloud trash bin)
+  verify_tls: true
+  timeout: 30
+  reconcile_interval: 600       # seconds
+
+ocr:
+  enabled: true
+  languages: [deu, eng]         # tesseract language packs installed in the image: deu, eng
+  min_chars: 50                 # run OCR when the text layer has fewer characters than this
+
+extraction:
+  date_languages: [de, en]
+  min_year: 1990
+  known_senders:
+    - name: Swisscom
+      patterns: ["swisscom"]
+    - name: CSS
+      patterns: ["css versicherung", "css kranken"]
+
+classifier:
+  retrain_cron: "0 3 * * *"     # nightly archive sync + retrain
+  top_n: 3
+  min_samples: 2                # folders with fewer documents are not learned (still selectable)
+  year_folder_pattern: '^\d{4}$'  # Steuern/2024 + Steuern/2025 -> Steuern/{year}
+  exclude: ["_*"]               # globs relative to root; use "**/_*" for any depth
+  ocr_archive: false            # OCR image-only archive PDFs for training (slow on first run)
+  rules:
+    - pattern: "(?i)steuererkl(ä|ae)rung"
+      label: "Steuern/{year}"
+
+naming:
+  template: "{date:%Y-%m-%d}_{sender}_{title}"
+  max_length: 120
+
+webui:
+  host: 0.0.0.0
+  port: 8080
+  username: admin
+  password_hash: ""             # `docker compose run --rm scansort scansort hash-password`
+  session_secret: ""            # random string; generated and stored in data_dir if empty
+  session_hours: 168
+  secure_cookies: auto          # auto = Secure flag when the request is HTTPS
+  forwarded_allow_ips: "127.0.0.1"  # reverse proxy IPs trusted for X-Forwarded-* headers
+
+logging:
+  level: INFO
+  format: text                  # text | json

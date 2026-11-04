@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block title %}{{ doc.proposed_name }} · scansort{% endblock %}
+{% block main_class %}detail{% endblock %}
+{% block content %}
+<div class="detail-grid"
+     id="detail" data-doc-id="{{ doc.id }}"
+     data-prev="{{ '/doc/%d' % prev_id if prev_id else '' }}"
+     data-next="{{ '/doc/%d' % next_id if next_id else '' }}">
+  <section class="preview">
+    <iframe src="/doc/{{ doc.id }}/pdf" title="PDF preview"></iframe>
+  </section>
+
+  <section class="panel">
+    <div class="pagehead">
+      <div class="nav">
+        {% if prev_id %}<a class="button" href="/doc/{{ prev_id }}" title="Previous (k)">←</a>{% endif %}
+        {% if position %}<span class="muted">{{ position }} / {{ total }}</span>{% endif %}
+        {% if next_id %}<a class="button" href="/doc/{{ next_id }}" title="Next (j)">→</a>{% endif %}
+      </div>
+      <span class="badge status-{{ doc.status }}">{{ doc.status.replace('_', ' ') }}</span>
+    </div>
+
+    {% if nc_error %}<div class="flash flash-error">{{ nc_error }}</div>{% endif %}
+    {% if doc.duplicate_of %}
+      <div class="flash flash-info">This file is identical to <a href="/doc/{{ doc.duplicate_of }}">document #{{ doc.duplicate_of }}</a>.</div>
+    {% endif %}
+
+    {% if doc.status != 'pending' %}
+      <p>{% if doc.final_path %}Location: <code>{{ doc.final_path }}</code>{% endif %}</p>
+      <p><a class="button" href="/">Back to queue</a></p>
+    {% else %}
+    <form method="post" action="/doc/{{ doc.id }}/file" id="file-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+      {% if doc.proposals %}
+      <fieldset class="proposals">
+        <legend>Proposals</legend>
+        {% for p in doc.proposals %}
+        <label class="proposal-btn" data-key="{{ loop.index }}">
+          <input type="radio" name="label" value="{{ p.label }}" {% if p.label == selected %}checked{% endif %}>
+          <span class="key">{{ loop.index }}</span>
+          <span class="lbl">{{ resolve(p.label, doc.doc_date) }}</span>
+          {% if p.source == 'rule' %}<span class="badge">rule</span>{% else %}
+          <span class="confbar small" title="{{ p.probability|pct }}"><span style="width: {{ (p.probability * 100)|round(0) }}%"></span></span>
+          <span class="muted">{{ p.probability|pct }}</span>{% endif %}
+        </label>
+        {% endfor %}
+      </fieldset>
+      {% else %}
+        <p class="muted">No proposal yet{% if not labels %} — the archive has not been synced{% endif %}. Pick a folder below.</p>
+      {% endif %}
+
+      <fieldset class="picker">
+        <legend>Folder</legend>
+        <input type="search" id="folder-search" placeholder="Search folders…" autocomplete="off">
+        <div class="folder-list" id="folder-list">
+          {% if recent %}
+          <div class="group">Recently used</div>
+          {% for lbl in recent %}
+          <label class="folder" data-label="{{ lbl|lower }}">
+            <input type="radio" name="label" value="{{ lbl }}" {% if lbl == selected and not doc.proposals %}checked{% endif %}>
+            {{ lbl }}
+          </label>
+          {% endfor %}
+          <div class="group">All folders</div>
+          {% endif %}
+          {% for opt in labels %}
+          <label class="folder" data-label="{{ opt.label|lower }}">
+            <input type="radio" name="label" value="{{ opt.label }}">
+            {{ opt.label }} <span class="muted">{{ opt.doc_count }}</span>
+          </label>
+          {% else %}
+          <p class="muted" id="no-folders">No folders cached yet. Use “Refresh folders” on the status page.</p>
+          {% endfor %}
+        </div>
+        <div class="newfolder">
+          <input type="text" id="new-folder-name" placeholder="New subfolder of selected folder…">
+          <button type="button" id="new-folder-btn">Create</button>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Name</legend>
+        <label>Date <input type="date" name="doc_date" id="doc-date" value="{{ doc.doc_date or '' }}">
+          {% if doc.doc_date_guessed %}<span class="badge muted">guessed</span>{% endif %}</label>
+        <label>Filename <input type="text" name="filename" id="filename" value="{{ doc.proposed_name }}" required></label>
+        <div class="target">→ <code id="target">{{ target or '(choose a folder)' }}</code></div>
+      </fieldset>
+
+      <div class="buttons">
+        <button class="primary" id="file-btn" title="Enter">File</button>
+        <a class="button" href="{{ '/doc/%d' % next_id if next_id else '/' }}" title="j">Skip</a>
+        <button type="submit" form="delete-form" class="danger">Delete</button>
+      </div>
+    </form>
+    <form method="post" action="/doc/{{ doc.id }}/delete" id="delete-form"
+          onsubmit="return confirm('Delete this document{{ ' (moves it to the trash folder)' if settings.nextcloud.trash_folder else ' (goes to the Nextcloud trash bin)' }}?')">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    </form>
+    {% endif %}
+
+    <details class="meta-box">
+      <summary>Details &amp; extracted text</summary>
+      <dl>
+        <dt>Sender</dt><dd>{{ doc.sender or '—' }}</dd>
+        <dt>Amount</dt><dd>{{ doc.amount or '—' }}</dd>
+        <dt>Pages</dt><dd>{{ doc.page_count }}</dd>
+        <dt>Text</dt><dd>{{ doc.text_source }}</dd>
+        <dt>Scanned</dt><dd>{{ doc.created_at|dt }}</dd>
+        <dt>Nextcloud</dt><dd><code>{{ doc.nc_path }}</code></dd>
+      </dl>
+      <pre class="doctext">{{ doc.text or '(no text)' }}</pre>
+    </details>
+    <p class="muted small">Shortcuts: <kbd>Enter</kbd> file · <kbd>1</kbd>–<kbd>3</kbd> proposal · <kbd>j</kbd>/<kbd>k</kbd> next/previous · <kbd>/</kbd> search folders</p>
+  </section>
+</div>
+{% endblock %}

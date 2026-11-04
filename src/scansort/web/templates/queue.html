@@ -1,0 +1,23 @@
+{% extends "base.html" %}
+{% block title %}Review ({{ docs|length }}) · scansort{% endblock %}
+{% block content %}
+<div class="pagehead">
+  <h1>Review queue <span class="count">{{ docs|length }}</span></h1>
+  {% if docs %}<a class="button" href="/doc/{{ docs[0].id }}">Start reviewing →</a>{% endif %}
+</div>
+{% if failed %}
+  <div class="flash flash-error">{{ failed }} file(s) could not be ingested. See <a href="/status">Status</a>.</div>
+{% endif %}
+{% if docs %}
+<table class="queue">
+  <tbody>
+  {% for doc in docs %}{% include "_row.html" %}{% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty card">
+  <p>Nothing to review. 🎉</p>
+  <p class="muted">New scans appear here automatically after OCR.</p>
+</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,74 @@
+{% extends "base.html" %}
+{% block title %}Status · scansort{% endblock %}
+{% block content %}
+<div class="pagehead"><h1>Status</h1><span class="muted">v{{ version }}</span></div>
+
+<div class="cards">
+  <div class="card">
+    <h2>Classifier</h2>
+    {% if model %}
+    <dl>
+      <dt>Trained</dt><dd>{{ model.trained_at|dt }}</dd>
+      <dt>Samples</dt><dd>{{ model.samples }}</dd>
+      <dt>Labels</dt><dd>{{ model.labels }}</dd>
+      <dt>CV accuracy</dt><dd>{{ model.cv_accuracy|pct if model.cv_accuracy is not none else '—' }}</dd>
+      {% if model.skipped_labels %}<dt>Too few samples</dt><dd>{{ model.skipped_labels|length }} folder(s)</dd>{% endif %}
+    </dl>
+    {% else %}
+    <p class="muted">No model yet. {{ model_status or 'Run an archive sync to train one.' }}</p>
+    {% endif %}
+    {% if model and model_status and model_status != 'ok' %}<p class="muted">Last training: {{ model_status }}</p>{% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Archive</h2>
+    <dl>
+      <dt>Last sync</dt><dd>{{ kv.get('last_archive_sync')|dt }}</dd>
+      {% if sync_stats %}
+      <dt>Files</dt><dd>{{ sync_stats.files }} in {{ sync_stats.folders }} folders</dd>
+      <dt>Downloaded</dt><dd>{{ sync_stats.downloaded }} ({{ sync_stats.failed }} failed, {{ sync_stats.seconds }}s)</dd>
+      {% endif %}
+      <dt>Folders refreshed</dt><dd>{{ kv.get('last_folder_refresh')|dt }}</dd>
+      <dt>Next nightly sync</dt><dd>{{ next_sync|dt if next_sync else '—' }}</dd>
+      <dt>Last reconcile</dt><dd>{{ kv.get('last_reconcile')|dt }}</dd>
+    </dl>
+    {% if job_running %}<p class="badge">sync running…</p>{% endif %}
+    {% if kv.get('last_archive_sync_error') %}<p class="error small">Last error: {{ kv.get('last_archive_sync_error') }}</p>{% endif %}
+    <div class="buttons">
+      <form method="post" action="/status/sync"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button class="primary">Sync archive &amp; retrain now</button></form>
+      <form method="post" action="/status/refresh-folders"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button>Refresh folders</button></form>
+      <form method="post" action="/status/reconcile"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button>Reconcile</button></form>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>System</h2>
+    <dl>
+      <dt>Nextcloud</dt><dd>{% if nc_ok %}<span class="ok">reachable</span>{% else %}<span class="error">unreachable</span>{% endif %} <span class="muted">{{ settings.nextcloud.url }}</span></dd>
+      <dt>Watcher</dt><dd>{% if watcher_running %}<span class="ok">running</span>{% else %}<span class="error">stopped</span>{% endif %} <span class="muted">{{ settings.watch.dir }}</span></dd>
+      <dt>OCR</dt><dd>{% if not settings.ocr.enabled %}disabled{% elif ocr_available %}<span class="ok">available</span> ({{ settings.ocr.languages|join('+') }}){% else %}<span class="error">ocrmypdf not found</span>{% endif %}</dd>
+      <dt>Documents</dt><dd>{% for st, n in counts.items() %}{{ st.replace('_',' ') }}: {{ n }}{% if not loop.last %} · {% endif %}{% else %}none yet{% endfor %}</dd>
+    </dl>
+  </div>
+</div>
+
+<h2>Failed ingests</h2>
+{% if attempts %}
+<table class="list">
+  <thead><tr><th>File</th><th>Attempts</th><th>Next try</th><th>Error</th><th></th></tr></thead>
+  <tbody>
+  {% for a in attempts %}
+  <tr>
+    <td><code>{{ a.local_path }}</code></td>
+    <td>{{ a.attempts }}</td>
+    <td>{{ a.next_try_at|dt }}</td>
+    <td class="error small">{{ a.last_error }}</td>
+    <td><form method="post" action="/status/retry/{{ a.id }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button>Retry now</button></form></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">None.</p>
+{% endif %}
+{% endblock %}
