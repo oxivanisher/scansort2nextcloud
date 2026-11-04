@@ -43,7 +43,7 @@ Issues = "https://github.com/oxivanisher/scansort2nextcloud/issues"
 
 [project.optional-dependencies]
 ocr = ["ocrmypdf>=16"]
-dev = ["pytest>=8", "respx>=0.21", "ruff>=0.6"]
+dev = ["pytest>=8", "respx>=0.21", "ruff>=0.17.3"]
 
 [project.scripts]
 scansort = "scansort.cli:main"
