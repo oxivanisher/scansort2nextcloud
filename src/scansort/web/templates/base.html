@@ -5,6 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="csrf-token" content="{{ csrf_token }}">
   <title>{% block title %}scansort{% endblock %}</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+  <link rel="icon" href="/favicon.ico" sizes="16x16 32x32 48x48">
+  <link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+  <meta name="theme-color" content="#0b6bcb">
   <link rel="stylesheet" href="/static/style.css?v={{ version }}">
   <script src="/static/htmx.min.js?v=2.0.4" defer></script>
   <script src="/static/app.js?v={{ version }}" defer></script>
@@ -12,7 +16,7 @@
 <body hx-headers='{"X-CSRF-Token": "{{ csrf_token }}"}' class="{% block body_class %}{% endblock %}">
   {% if user %}
   <header class="topbar">
-    <a class="brand" href="/">scansort</a>
+    <a class="brand" href="/"><img src="/static/logo.svg" alt="" width="24" height="24">scansort</a>
     <nav>
       <a href="/" class="{{ 'active' if request.url.path == '/' }}">Review</a>
       <a href="/status" class="{{ 'active' if request.url.path == '/status' }}">Status</a>

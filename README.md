@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.svg">
+    <img src="docs/assets/logo.svg" alt="scansort" width="340">
+  </picture>
+</p>
+
 # scansort2nextcloud
 
 **Scan → OCR → one-click filing into Nextcloud. Fully local, no cloud AI.**

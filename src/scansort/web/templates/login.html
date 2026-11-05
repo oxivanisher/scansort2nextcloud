@@ -3,7 +3,7 @@
 {% block body_class %}login-page{% endblock %}
 {% block content %}
 <form method="post" action="/login" class="card login">
-  <h1>scansort</h1>
+  <h1 class="login-brand"><img src="/static/logo.svg" alt="" width="40" height="40">scansort</h1>
   {% if error %}<div class="flash flash-error">{{ error }}</div>{% endif %}
   <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
   <input type="hidden" name="next" value="{{ next }}">

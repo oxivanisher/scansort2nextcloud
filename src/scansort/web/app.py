@@ -12,7 +12,7 @@ from pathlib import Path
 from urllib.parse import quote
 
 from fastapi import Depends, FastAPI, Form, Request
-from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from sqlalchemy import func, select
@@ -124,7 +124,7 @@ def create_app(settings: Settings, services: Services | None = None, background:
     # --- session / security middleware -----------------------------------------------------
     @app.middleware("http")
     async def session_middleware(request: Request, call_next):
-        if request.url.path.startswith("/static") or request.url.path == "/healthz":
+        if request.url.path.startswith("/static") or request.url.path in ("/healthz", "/favicon.ico"):
             return await call_next(request)
         data, new = sessions.load(request)
         request.state.session = data
@@ -463,6 +463,10 @@ def create_app(settings: Settings, services: Services | None = None, background:
         return RedirectResponse("/status", status_code=303)
 
     # --- health ----------------------------------------------------------------------------
+    @app.get("/favicon.ico", include_in_schema=False)
+    def favicon():
+        return FileResponse(HERE / "static" / "favicon.ico", media_type="image/x-icon")
+
     @app.get("/healthz")
     def healthz():
         db_ok = svc.db.ping()

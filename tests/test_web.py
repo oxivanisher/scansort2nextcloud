@@ -41,6 +41,15 @@ def test_healthz(client):
     assert r.status_code == 200 and r.json()["db"] is True
 
 
+def test_icons_public(client):
+    r = client.get("/favicon.ico", follow_redirects=False)
+    assert r.status_code == 200 and r.headers["content-type"] == "image/x-icon"
+    for path in ("/static/favicon.svg", "/static/logo.svg", "/static/apple-touch-icon.png"):
+        assert client.get(path, follow_redirects=False).status_code == 200, path
+    login = client.get("/login").text
+    assert 'href="/static/favicon.svg"' in login and 'src="/static/logo.svg"' in login
+
+
 def test_requires_login(client):
     r = client.get("/", follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"].startswith("/login")

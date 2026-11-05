@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 272 64" width="272" height="64">
+  <title>scansort</title>
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1680e6"/>
+      <stop offset="1" stop-color="#0a4f99"/>
+    </linearGradient>
+    <linearGradient id="glow" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#5ee0ff" stop-opacity="0"/>
+      <stop offset="1" stop-color="#5ee0ff" stop-opacity=".55"/>
+    </linearGradient>
+  </defs>
+  <!-- tile -->
+  <rect width="64" height="64" rx="14" fill="url(#tile)"/>
+  <!-- document with folded corner -->
+  <path d="M19 9h20l9 9v37a2 2 0 0 1-2 2H19a2 2 0 0 1-2-2V11a2 2 0 0 1 2-2z" fill="#fff"/>
+  <path d="M39 9v7a2 2 0 0 0 2 2h7z" fill="#b9d7f5"/>
+  <!-- text lines: crisp above the beam (already scanned) -->
+  <rect x="22" y="23" width="16" height="3" rx="1.5" fill="#0b6bcb"/>
+  <rect x="22" y="29" width="21" height="3" rx="1.5" fill="#8fb4dc"/>
+  <!-- light swept by the beam -->
+  <rect x="17" y="33" width="31" height="6" fill="url(#glow)"/>
+  <!-- text lines below the beam (not yet scanned) -->
+  <rect x="22" y="44" width="21" height="3" rx="1.5" fill="#dbe6f2"/>
+  <rect x="22" y="50" width="13" height="3" rx="1.5" fill="#dbe6f2"/>
+  <!-- scan beam, wider than the sheet -->
+  <rect x="10" y="38" width="44" height="3.5" rx="1.75" fill="#5ee0ff"/>
+  <!-- sorted into a folder: badge bottom right -->
+  <g transform="translate(36.5 39) scale(.82)">
+    <path d="M2 4a3 3 0 0 1 3-3h6l3 3h8a3 3 0 0 1 3 3v12a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3z"
+          fill="#ffb020" stroke="#0a4f99" stroke-width="2.5" stroke-linejoin="round"/>
+    <path d="M8.5 13.5l3.5 3.5 6.5-7" fill="none" stroke="#fff" stroke-width="3"
+          stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+
+  <text x="80" y="45" font-family="Inter, 'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif"
+        font-size="40" font-weight="700" letter-spacing="-0.5"><tspan fill="#1d2330">scan</tspan><tspan fill="#0b6bcb">sort</tspan></text>
+</svg>
