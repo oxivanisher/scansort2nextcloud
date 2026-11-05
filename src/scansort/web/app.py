@@ -57,7 +57,7 @@ def _pct(value: float | None) -> str:
     return "" if value is None else f"{value * 100:.0f}%"
 
 
-def _dt(value: datetime | str | None) -> str:
+def _dt(value: datetime | str | None, date_format: str = "%d.%m.%Y") -> str:
     if not value:
         return "—"
     if isinstance(value, str):
@@ -65,20 +65,35 @@ def _dt(value: datetime | str | None) -> str:
             value = datetime.fromisoformat(value)
         except ValueError:
             return value
-    return value.astimezone().strftime("%Y-%m-%d %H:%M")
+    return value.astimezone().strftime(f"{date_format} %H:%M")
 
 
-templates.env.filters["pct"] = _pct
-templates.env.filters["dt"] = _dt
+def _fmt_date(value: date | None, date_format: str = "%d.%m.%Y") -> str:
+    return value.strftime(date_format) if value else ""
 
 
-def _parse_date(value: str | None) -> date | None:
+def date_placeholder(date_format: str) -> str:
+    """``%d.%m.%Y`` → ``dd.mm.yyyy``."""
+    return date_format.replace("%d", "dd").replace("%m", "mm").replace("%Y", "yyyy").replace("%y", "yy")
+
+
+def _parse_date(value: str | None, date_format: str = "%d.%m.%Y") -> date | None:
+    """Parse the configured format (also with a 2-digit year or without leading zeros) or ISO."""
+    value = (value or "").strip()
     if not value:
         return None
+    for fmt in (date_format, date_format.replace("%Y", "%y")):
+        try:
+            return datetime.strptime(value, fmt).date()
+        except ValueError:
+            pass
     try:
         return date.fromisoformat(value)
     except ValueError:
         return None
+
+
+templates.env.filters["pct"] = _pct
 
 
 def create_app(settings: Settings, services: Services | None = None, background: bool = True) -> FastAPI:
@@ -87,6 +102,13 @@ def create_app(settings: Settings, services: Services | None = None, background:
     if problem:
         raise RuntimeError(problem + " (environment variable: SCANSORT_WEBUI__PASSWORD_HASH)")
     svc = services or Services(settings)
+    date_fmt = settings.webui.date_format
+    templates.env.filters["dt"] = lambda v: _dt(v, date_fmt)
+    templates.env.filters["d"] = lambda v: _fmt_date(v, date_fmt)
+    templates.env.globals["date_placeholder"] = date_placeholder(date_fmt)
+
+    def parse_date(value: str | None) -> date | None:
+        return _parse_date(value, date_fmt)
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     sessions = SessionManager(
         load_or_create_secret(settings.webui.session_secret.get_secret_value(), settings.data_dir),
@@ -350,7 +372,7 @@ def create_app(settings: Settings, services: Services | None = None, background:
         doc = get_doc(doc_id)
         if doc is None:
             return JSONResponse({"error": "not found"}, status_code=404)
-        d = _parse_date(date) or doc.doc_date
+        d = parse_date(date) or doc.doc_date
         label = label.strip().strip("/")
         return {
             "filename": svc.filename_for(label or None, d, doc.sender),
@@ -367,8 +389,12 @@ def create_app(settings: Settings, services: Services | None = None, background:
         _user: str = Auth,
     ):
         ids = pending_ids()
+        parsed = parse_date(doc_date)
+        if doc_date.strip() and parsed is None:
+            flash(request, f"Invalid date {doc_date!r}, expected {date_placeholder(date_fmt)}.", "error")
+            return RedirectResponse(f"/doc/{doc_id}", status_code=303)
         try:
-            doc = file_document(svc, doc_id, label, filename or None, _parse_date(doc_date))
+            doc = file_document(svc, doc_id, label, filename or None, parsed)
         except (FilingError, DavError) as exc:
             flash(request, str(exc), "error")
             return RedirectResponse(f"/doc/{doc_id}", status_code=303)
@@ -389,10 +415,10 @@ def create_app(settings: Settings, services: Services | None = None, background:
     @app.post("/folders/new", dependencies=[Csrf])
     def new_folder(parent: str = Form(""), name: str = Form(""), doc_date: str = Form(""), _user: str = Auth):
         try:
-            label = create_folder(svc, parent or None, name, _parse_date(doc_date))
+            label = create_folder(svc, parent or None, name, parse_date(doc_date))
         except (FilingError, DavError) as exc:
             return JSONResponse({"error": str(exc)}, status_code=400)
-        d = _parse_date(doc_date)
+        d = parse_date(doc_date)
         return {"label": label, "target": target_folder(svc, label, d)}
 
     # --- status ----------------------------------------------------------------------------

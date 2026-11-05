@@ -179,6 +179,22 @@ class WebUISettings(_Section):
     session_hours: int = Field(168, ge=1)
     secure_cookies: Literal["auto", "always", "never"] = "auto"
     forwarded_allow_ips: str = "127.0.0.1"
+    date_format: str = "%d.%m.%Y"  # strftime format for dates in the UI, e.g. "%Y-%m-%d"
+
+    @field_validator("date_format")
+    @classmethod
+    def _date_format(cls, v: str) -> str:
+        from datetime import date as _date
+        from datetime import datetime as _datetime
+
+        sample = _date(2026, 1, 22)
+        try:
+            ok = _datetime.strptime(sample.strftime(v), v).date() == sample
+        except ValueError:
+            ok = False
+        if not ok:
+            raise ValueError(f"invalid date format {v!r}: must contain day, month and year, e.g. %d.%m.%Y")
+        return v
 
 
 class LoggingSettings(_Section):

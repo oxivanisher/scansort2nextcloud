@@ -83,7 +83,7 @@
 
       <fieldset>
         <legend>Name</legend>
-        <label>Date <input type="date" name="doc_date" id="doc-date" value="{{ doc.doc_date or '' }}">
+        <label>Date <input type="text" name="doc_date" id="doc-date" value="{{ doc.doc_date|d }}" placeholder="{{ date_placeholder }}" inputmode="numeric" size="10" autocomplete="off">
           {% if doc.doc_date_guessed %}<span class="badge muted">guessed</span>{% endif %}</label>
         <label>Filename <input type="text" name="filename" id="filename" value="{{ doc.proposed_name }}" required></label>
         <div class="target">→ <code id="target">{{ target or '(choose a folder)' }}</code></div>

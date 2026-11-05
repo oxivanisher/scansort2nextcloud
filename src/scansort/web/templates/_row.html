@@ -4,7 +4,7 @@
   <td>
     <a class="docname" href="/doc/{{ doc.id }}">{{ doc.proposed_name }}</a>
     <div class="meta">
-      {{ doc.doc_date or '' }}{% if doc.doc_date_guessed %} <span class="badge muted" title="No date found in the text; using the scan date">guessed</span>{% endif %}
+      {{ doc.doc_date|d }}{% if doc.doc_date_guessed %} <span class="badge muted" title="No date found in the text; using the scan date">guessed</span>{% endif %}
       {% if doc.sender %} · {{ doc.sender }}{% endif %}
       {% if doc.amount %} · {{ doc.amount }}{% endif %}
       · {{ doc.page_count }} p.

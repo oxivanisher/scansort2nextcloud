@@ -260,6 +260,7 @@ nested keys with `__`.
 | `naming.template`               | `SCANSORT_NAMING__TEMPLATE`            | `{date:%Y%m%d}_{title}` |
 | `webui.password_hash`           | `SCANSORT_WEBUI__PASSWORD_HASH`        | — (required)            |
 | `webui.session_secret`          | `SCANSORT_WEBUI__SESSION_SECRET`       | generated and stored in `/data` |
+| `webui.date_format`             | `SCANSORT_WEBUI__DATE_FORMAT`          | `%d.%m.%Y` (ISO: `%Y-%m-%d`) |
 | `logging.format`                | `SCANSORT_LOGGING__FORMAT`             | `text` (`json` available) |
 
 Notes:

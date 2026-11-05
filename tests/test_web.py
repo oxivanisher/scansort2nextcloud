@@ -166,3 +166,31 @@ def test_requires_password_hash(settings):
     settings.webui.password_hash = SecretStr("")
     with pytest.raises(RuntimeError, match="hash-password"):
         create_app(settings, background=False)
+
+
+def test_date_format_parsing_and_display(client, svc, settings):
+    from datetime import date
+
+    from scansort.web.app import _parse_date, date_placeholder
+
+    assert _parse_date("22.01.2026") == date(2026, 1, 22)
+    assert _parse_date("2.1.26") == date(2026, 1, 2)
+    assert _parse_date("2026-01-22") == date(2026, 1, 22)  # ISO always works
+    assert _parse_date("01/22/2026", "%m/%d/%Y") == date(2026, 1, 22)
+    assert _parse_date("32.01.2026") is None and _parse_date("") is None
+    assert date_placeholder("%d.%m.%Y") == "dd.mm.yyyy"
+
+    token = login(client)
+    doc_id = add_doc(svc, settings)
+    assert "01.02.2025" in client.get("/").text
+    page = client.get(f"/doc/{doc_id}").text
+    assert 'value="01.02.2025"' in page and 'placeholder="dd.mm.yyyy"' in page
+    sug = client.get(f"/doc/{doc_id}/suggest", params={"label": "Briefe/{year}", "date": "03.03.2024"}).json()
+    assert sug["target"] == "/Dokumente/Briefe/2024"
+
+    r = client.post(f"/doc/{doc_id}/file", data={"csrf_token": token, "label": "Privat/Briefe",
+                                               "filename": "x", "doc_date": "31.02.2025"},
+                    follow_redirects=True)
+    assert "Invalid date" in r.text
+    with svc.db.session() as s:
+        assert s.get(Document, doc_id).status == Status.PENDING
