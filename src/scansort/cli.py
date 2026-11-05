@@ -1,4 +1,4 @@
-"""Command line interface: ``scansort serve | hash-password | check-config | migrate | sync``."""
+"""Command line interface: ``scansort serve | hash-password | check-password | check-config | migrate | sync``."""
 
 from __future__ import annotations
 
@@ -71,8 +71,33 @@ def cmd_hash_password(args) -> int:
     if len(password) < 8:
         print("Use at least 8 characters.", file=sys.stderr)
         return 1
-    print(hash_password(password))
+    pw_hash = hash_password(password)
+    print(pw_hash)
+    if sys.stderr.isatty():
+        print(f"\nFor .env (keep the SINGLE quotes):\n  WEBUI_PASSWORD_HASH='{pw_hash}'", file=sys.stderr)
     return 0
+
+
+def cmd_check_password(args) -> int:
+    """Test a password against the configured webui.password_hash (diagnoses failed logins)."""
+    from scansort.web.auth import password_hash_problem, verify_password
+
+    settings = _load(args)
+    pw_hash = settings.webui.password_hash.get_secret_value()
+    problem = password_hash_problem(pw_hash)
+    if problem:
+        print(f"ERROR: {problem}")
+        return 2
+    if args.stdin or not sys.stdin.isatty():
+        password = sys.stdin.readline().rstrip("\n")
+    else:
+        password = getpass.getpass("Password to test: ")
+    print(f"Login user: {settings.webui.username!r}")
+    if verify_password(pw_hash, password):
+        print("OK: the password matches webui.password_hash.")
+        return 0
+    print("MISMATCH: the password does not match webui.password_hash.")
+    return 1
 
 
 def cmd_check_config(args) -> int:
@@ -81,8 +106,14 @@ def cmd_check_config(args) -> int:
 
     nc_cfg = settings.nextcloud
     print(f"Config OK. Nextcloud: {nc_cfg.url} as {nc_cfg.user}, root {nc_cfg.root}")
-    if not settings.webui.password_hash.get_secret_value():
-        print("WARNING: webui.password_hash is empty; `scansort serve` will refuse to start.")
+    from scansort.web.auth import password_hash_problem
+
+    problem = password_hash_problem(settings.webui.password_hash.get_secret_value())
+    if problem:
+        print(f"WARNING: {problem} `scansort serve` will refuse to start.")
+    else:
+        print(f"Web UI login: user {settings.webui.username!r}; password hash OK "
+              "(test a password with `scansort check-password`).")
     if not nc_cfg.password.get_secret_value():
         print("WARNING: nextcloud.password is empty; set the app password of "
               f"{nc_cfg.user!r} via SCANSORT_NEXTCLOUD__PASSWORD (NC_APP_PASSWORD in .env).")
@@ -143,6 +174,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("serve", help="run the web UI, watcher and scheduler (default)")
     p = sub.add_parser("hash-password", help="create an argon2 hash for webui.password_hash")
     p.add_argument("--stdin", action="store_true", help="read the password from stdin")
+    p = sub.add_parser("check-password", help="test a password against the configured webui.password_hash")
+    p.add_argument("--stdin", action="store_true", help="read the password from stdin")
     p = sub.add_parser("check-config", help="validate the configuration")
     p.add_argument("--connect", action="store_true", help="also test the Nextcloud connection")
     sub.add_parser("migrate", help="apply database migrations")
@@ -151,6 +184,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     handlers = {
         None: cmd_serve, "serve": cmd_serve, "hash-password": cmd_hash_password,
-        "check-config": cmd_check_config, "migrate": cmd_migrate, "sync": cmd_sync,
+        "check-config": cmd_check_config, "check-password": cmd_check_password,
+        "migrate": cmd_migrate, "sync": cmd_sync,
     }
     return handlers[args.command](args)

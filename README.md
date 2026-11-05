@@ -298,11 +298,28 @@ scansort is meant to run behind your reverse proxy (TLS). If it does, set
 `webui.forwarded_allow_ips` to the proxy's IP address so that HTTPS is detected and the cookie
 gets the `Secure` flag. It also works over plain HTTP on the LAN.
 
+### Login fails with "Invalid username or password"
+
+The browser deliberately shows the same message for every failure. The server log gives the real
+reason (`docker compose logs scansort`): `unknown username 'x'` or `wrong password`.
+
+- **Username:** the default is `admin` (`webui.username` in `config.yaml`).
+- **Hash quoting:** the hash in `.env` must be in **single** quotes:
+  `WEBUI_PASSWORD_HASH='$argon2id$v=19$...'`. With double quotes or no quotes, Docker Compose
+  treats the `$...` parts as variables and silently removes them. scansort detects such a mangled
+  hash and refuses to start with an explanation.
+- **Testing a password:** run
+  `docker compose exec scansort scansort check-password` to check a password against the hash
+  the container actually uses.
+
+Special characters in the password are fine. Only the hash ends up in `.env`.
+
 ## CLI
 
 ```
 scansort serve                     # web UI + watcher + scheduler (default)
 scansort hash-password [--stdin]   # create an argon2 hash for webui.password_hash
+scansort check-password [--stdin]  # test a password against the configured hash
 scansort check-config [--connect]  # validate config, optionally test Nextcloud access
 scansort sync                      # archive sync + retrain once, then exit
 scansort migrate                   # apply database migrations

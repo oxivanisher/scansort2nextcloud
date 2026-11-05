@@ -63,6 +63,44 @@ def test_bad_login_and_throttle(client):
     assert codes[:3] == [401, 401, 401] and 429 in codes
 
 
+SPECIAL_PW = 'Sup3r$ecret!"#%&/()=?`´\\\'<>{}[]~^ äöü€ 密码 🔑'
+
+
+def test_login_with_special_characters(settings, svc):
+    from pydantic import SecretStr
+
+    from scansort.web.auth import hash_password
+
+    settings.webui.password_hash = SecretStr(hash_password(SPECIAL_PW))
+    with TestClient(create_app(settings, services=svc, background=False), base_url="http://testserver") as c:
+        token = csrf_of(c.get("/login").text)
+        r = c.post("/login", data={"username": "admin", "password": SPECIAL_PW, "csrf_token": token},
+                   follow_redirects=False)
+        assert r.status_code == 303
+
+
+def test_failed_login_logs_reason(client, caplog):
+    token = csrf_of(client.get("/login").text)
+    with caplog.at_level("WARNING"):
+        client.post("/login", data={"username": "root", "password": PASSWORD, "csrf_token": token})
+        client.post("/login", data={"username": "admin", "password": "nope", "csrf_token": token})
+    text = caplog.text
+    assert "unknown username 'root'" in text and "wrong password" in text
+    assert PASSWORD not in text and "nope" not in text
+
+
+@pytest.mark.parametrize("bad", [
+    "argon2id=19,t=3,p=4ZUhGvL0Jz9k",  # what Compose leaves after eating the $... parts
+    "not-a-hash",
+])
+def test_mangled_hash_refused(settings, svc, bad):
+    from pydantic import SecretStr
+
+    settings.webui.password_hash = SecretStr(bad)
+    with pytest.raises(RuntimeError, match="not a valid argon2 hash"):
+        create_app(settings, services=svc, background=False)
+
+
 def test_session_cookie_flags(client):
     r = client.get("/login")
     cookie = r.headers["set-cookie"].lower()

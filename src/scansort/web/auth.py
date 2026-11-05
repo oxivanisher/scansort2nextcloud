@@ -33,6 +33,28 @@ def hash_password(password: str) -> str:
     return _hasher.hash(password)
 
 
+def password_hash_problem(password_hash: str) -> str | None:
+    """Explain why ``password_hash`` is unusable, or return None if it is a valid argon2 hash."""
+    from argon2 import extract_parameters
+
+    if not password_hash:
+        return "webui.password_hash is not set. Create one with `scansort hash-password`."
+    try:
+        extract_parameters(password_hash)
+        return None
+    except (InvalidHashError, ValueError):
+        pass
+    shown = password_hash[:12] + "…"
+    hint = ""
+    if not password_hash.startswith("$argon2"):
+        hint = (
+            " The leading '$...' parts are missing: Docker Compose replaced them as variables. In .env, "
+            "wrap the hash in SINGLE quotes (WEBUI_PASSWORD_HASH='$argon2id$...'); double quotes or no "
+            "quotes do not work. In docker-compose.yml itself, write every $ as $$."
+        )
+    return f"webui.password_hash is not a valid argon2 hash (it starts with {shown!r}).{hint}"
+
+
 def verify_password(password_hash: str, password: str) -> bool:
     try:
         return _hasher.verify(password_hash, password)
@@ -110,7 +132,12 @@ class LoginThrottle:
             self._state.pop(key, None)
 
 
-def check_credentials(username: str, password: str, expected_user: str, password_hash: str) -> bool:
+def check_credentials(username: str, password: str, expected_user: str, password_hash: str) -> str | None:
+    """Return None on success, otherwise the failure reason (for the server log only)."""
     user_ok = hmac.compare_digest(username.encode(), expected_user.encode())
-    pw_ok = verify_password(password_hash, password)
-    return user_ok and pw_ok
+    pw_ok = verify_password(password_hash, password)  # always run: constant-ish timing
+    if user_ok and pw_ok:
+        return None
+    if not user_ok:
+        return f"unknown username {username!r} (configured: webui.username={expected_user!r})"
+    return "wrong password for this webui.password_hash"

@@ -43,6 +43,7 @@ from scansort.web.auth import (
     SessionManager,
     check_credentials,
     load_or_create_secret,
+    password_hash_problem,
 )
 from scansort.webdav import DavError
 
@@ -82,11 +83,9 @@ def _parse_date(value: str | None) -> date | None:
 
 def create_app(settings: Settings, services: Services | None = None, background: bool = True) -> FastAPI:
     pw_hash = settings.webui.password_hash.get_secret_value()
-    if not pw_hash:
-        raise RuntimeError(
-            "webui.password_hash is not set. Create one with `scansort hash-password` and set "
-            "SCANSORT_WEBUI__PASSWORD_HASH."
-        )
+    problem = password_hash_problem(pw_hash)
+    if problem:
+        raise RuntimeError(problem + " (environment variable: SCANSORT_WEBUI__PASSWORD_HASH)")
     svc = services or Services(settings)
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     sessions = SessionManager(
@@ -229,9 +228,10 @@ def create_app(settings: Settings, services: Services | None = None, background:
         if wait:
             return render(request, "login.html", {"next": next, "error": f"Too many attempts. Try again in {wait}s."},
                           status_code=429)
-        if not check_credentials(username, password, settings.webui.username, pw_hash):
+        reason = check_credentials(username, password, settings.webui.username, pw_hash)
+        if reason:
             throttle.failure(key)
-            log.warning("failed login", extra={"client": key})
+            log.warning("failed login: %s", reason, extra={"client": key})
             return render(request, "login.html", {"next": next, "error": "Invalid username or password."},
                           status_code=401)
         throttle.success(key)
