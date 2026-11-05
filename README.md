@@ -102,9 +102,11 @@ Open `http://<host>:8080`, log in, and point your scanner's *scan to FTP* at the
 On first start scansort syncs your archive and trains the model. The *Status* page shows progress.
 Until a model exists, pick folders manually; everything you file becomes training data.
 
-> **Permissions:** the FTP server and scansort share `./inbox`. Run scansort as a user that can
-> read **and delete** the files the FTP server writes (same UID, or a shared group with write
-> access to the folder). See [Running as a different user](#running-as-a-different-user).
+> **Permissions:** the FTP server and scansort share `./inbox`, so scansort must be able to read
+> **and delete** the scans. The example compose file runs both as `STACK_UID`/`STACK_GID` from
+> `.env`. The bundled `delfer/alpine-ftp-server` image has to start as root, but it writes
+> uploads as that UID/GID into an inbox it owns and that is not group-writable. scansort must
+> therefore use the same UID. See [Running as a different user](#running-as-a-different-user).
 
 ### Running as a different user
 
