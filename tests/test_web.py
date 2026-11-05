@@ -194,3 +194,15 @@ def test_date_format_parsing_and_display(client, svc, settings):
     assert "Invalid date" in r.text
     with svc.db.session() as s:
         assert s.get(Document, doc_id).status == Status.PENDING
+
+
+def test_date_chips(client, svc, settings):
+    from datetime import date
+
+    login(client)
+    doc_id = add_doc(svc, settings, lines=("Rechnung", "Rechnungsdatum 05.03.2025", "Zahlbar bis 04.04.2025"))
+    page = client.get(f"/doc/{doc_id}").text
+    chips = re.findall(r'class="chip( active)?" data-date="([^"]+)"', page)
+    today = date.today().strftime("%d.%m.%Y")
+    assert chips == [(" active", "05.03.2025"), ("", "04.04.2025"), ("", today)]
+    assert "· Rechnungsdatum" in page

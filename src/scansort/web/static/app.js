@@ -28,6 +28,20 @@
     } catch (e) { /* offline: keep current values */ }
   }
 
+  // date chips: click to use a date found in the document
+  const chips = document.getElementById("date-chips");
+  const markActiveChip = () => chips?.querySelectorAll(".chip").forEach((c) => {
+    c.classList.toggle("active", c.dataset.date === dateInput.value.trim());
+  });
+  chips?.addEventListener("click", (ev) => {
+    const chip = ev.target.closest(".chip");
+    if (!chip || !dateInput) return;
+    dateInput.value = chip.dataset.date;
+    markActiveChip();
+    refreshSuggestion();
+  });
+  dateInput?.addEventListener("input", markActiveChip);
+
   if (form) {
     filename.addEventListener("input", () => { filenameEdited = true; });
     form.addEventListener("change", (ev) => {

@@ -85,6 +85,16 @@
         <legend>Name</legend>
         <label>Date <input type="text" name="doc_date" id="doc-date" value="{{ doc.doc_date|d }}" placeholder="{{ date_placeholder }}" inputmode="numeric" size="10" autocomplete="off">
           {% if doc.doc_date_guessed %}<span class="badge muted">guessed</span>{% endif %}</label>
+        {% set chips = date_choices | map(attribute='value') | list %}
+        <div class="date-chips" id="date-chips" role="group" aria-label="Dates found in the document">
+          {% for c in date_choices %}
+          <button type="button" class="chip{{ ' active' if c.value == doc.doc_date }}" data-date="{{ c.value|d }}"
+                  title="{{ ('after “%s”' % c.keyword) if c.keyword else 'found in text' }}">{{ c.value|d }}{% if c.keyword %} <span class="muted">· {{ c.keyword }}</span>{% endif %}</button>
+          {% endfor %}
+          {% if today not in chips %}
+          <button type="button" class="chip{{ ' active' if today == doc.doc_date }}" data-date="{{ today|d }}" title="{{ today|d }}">Today</button>
+          {% endif %}
+        </div>
         <label>Filename <input type="text" name="filename" id="filename" value="{{ doc.proposed_name }}" required></label>
         <div class="target">→ <code id="target">{{ target or '(choose a folder)' }}</code></div>
       </fieldset>

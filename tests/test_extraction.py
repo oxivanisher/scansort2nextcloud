@@ -3,7 +3,7 @@ from datetime import date
 import pytest
 
 from scansort.config import ExtractionSettings, KnownSender
-from scansort.extraction import extract_amount, extract_date, extract_fields, extract_sender
+from scansort.extraction import date_choices, extract_amount, extract_date, extract_fields, extract_sender
 
 CFG = ExtractionSettings(known_senders=[KnownSender(name="CSS", patterns=["css versicherung", r"css\s+kranken"])])
 TODAY = date(2026, 6, 1)
@@ -60,3 +60,13 @@ def test_sender():
 ])
 def test_amount(text, expected):
     assert extract_amount(text, CFG) == expected
+
+
+def test_date_choices_ranked_and_distinct():
+    text = "Zürich, 15.03.2026\nRechnungsdatum: 12.03.2026\nFällig am 12.04.2026\nRef 15.03.2026\nfuture 01.01.2030"
+    choices = date_choices(text, CFG, TODAY)
+    assert [c.value for c in choices] == [date(2026, 3, 12), date(2026, 3, 15), date(2026, 4, 12)]
+    assert choices[0].keyword == "Rechnungsdatum" and choices[1].keyword is None
+    assert choices[0].value == extract_date(text, CFG, TODAY)
+    assert len(date_choices(" ".join(f"{d}.01.2026" for d in range(1, 20)), CFG, TODAY, limit=4)) == 4
+    assert date_choices("", CFG, TODAY) == []

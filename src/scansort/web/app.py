@@ -21,6 +21,7 @@ from sqlalchemy.orm import selectinload
 from scansort import __version__
 from scansort.config import Settings
 from scansort.db import Document, IngestAttempt, Status, utcnow
+from scansort.extraction import date_choices
 from scansort.filing import (
     FilingError,
     accept_document,
@@ -337,6 +338,8 @@ def create_app(settings: Settings, services: Services | None = None, background:
             "recent": recent_labels(svc),
             "selected": selected,
             "target": target_folder(svc, selected, doc.doc_date) if selected else "",
+            "date_choices": date_choices(doc.text, settings.extraction),
+            "today": date.today(),
             "nc_error": nc_error,
             "resolve": resolve,
         })

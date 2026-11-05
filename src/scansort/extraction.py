@@ -31,6 +31,7 @@ class DateCandidate:
     pos: int
     value: date
     score: int
+    keyword: str | None = None
 
 
 @dataclass
@@ -88,22 +89,27 @@ def find_dates(text: str, cfg: ExtractionSettings, today: date | None = None) ->
             if (v := _parse_words(m.group(0), cfg.date_languages)) is not None:
                 raw.append((m.start(), v))
 
-    keywords = [k.lower() for k in cfg.date_keywords]
+    keywords = [(k.lower(), k) for k in cfg.date_keywords]
     lowered = text.lower()
     out: list[DateCandidate] = []
     seen: set[int] = set()
+    starts = sorted({pos for pos, _ in raw})
+    prev_start = {b: a for a, b in zip(starts, starts[1:], strict=False)}
     for pos, value in sorted(raw):
         if pos in seen or value > today or value.year < cfg.min_year:
             continue
         seen.add(pos)
-        window = lowered[max(0, pos - _KEYWORD_WINDOW):pos]
-        score = 0
-        for kw in keywords:
+        # a keyword belongs to the nearest date after it: don't look back past the previous date
+        window = lowered[max(0, pos - _KEYWORD_WINDOW, prev_start.get(pos, -1) + 1):pos]
+        score, matched = 0, None
+        for kw, original in keywords:
             idx = window.rfind(kw)
             if idx >= 0 and re.search(rf"(?<!\w){re.escape(kw)}(?!\w)", window):
                 # closer keywords and longer (more specific) keywords score higher
-                score = max(score, 10 + len(kw) - (len(window) - idx) // 10)
-        out.append(DateCandidate(pos, value, score))
+                kw_score = 10 + len(kw) - (len(window) - idx) // 10
+                if kw_score > score:
+                    score, matched = kw_score, original
+        out.append(DateCandidate(pos, value, score, matched))
     return out
 
 
@@ -113,6 +119,18 @@ def extract_date(text: str, cfg: ExtractionSettings, today: date | None = None) 
         return None
     best = max(candidates, key=lambda c: (c.score, -c.pos))
     return best.value
+
+
+def date_choices(
+    text: str, cfg: ExtractionSettings, today: date | None = None, limit: int = 6
+) -> list[DateCandidate]:
+    """Distinct dates found in ``text``, best first (same ranking as :func:`extract_date`)."""
+    best: dict[date, DateCandidate] = {}
+    for c in find_dates(text, cfg, today) if text else []:
+        cur = best.get(c.value)
+        if cur is None or (c.score, -c.pos) > (cur.score, -cur.pos):
+            best[c.value] = c
+    return sorted(best.values(), key=lambda c: (-c.score, c.pos))[:limit]
 
 
 def extract_sender(text: str, cfg: ExtractionSettings) -> str | None:

@@ -55,6 +55,12 @@ dt { color: var(--muted); } dd { margin: 0; }
          border: 1px solid var(--border); color: var(--muted); }
 .badge.warn { color: var(--warn); border-color: var(--warn); }
 .badge.dup { color: var(--err); border-color: var(--err); }
+.date-chips { display: flex; flex-wrap: wrap; gap: .35rem; margin: -.2rem 0 .6rem; }
+.date-chips .chip { font: inherit; font-size: .8rem; padding: .1rem .55rem; border-radius: 99px; cursor: pointer;
+                    border: 1px solid var(--border); background: var(--card); color: var(--fg); }
+.date-chips .chip:hover { border-color: var(--accent); }
+.date-chips .chip.active { border-color: var(--accent); background: var(--accent); color: var(--accent-fg); }
+.date-chips .chip.active .muted { color: inherit; opacity: .8; }
 
 .login-page main { display: grid; place-items: center; min-height: 100vh; }
 .card.login { width: min(360px, 92vw); display: grid; gap: .3rem; }
