@@ -57,7 +57,7 @@ webui:
   host: 0.0.0.0
   port: 8080
   username: admin
-  password_hash: ""             # `docker compose run --rm scansort scansort hash-password`
+  password_hash: ""             # set WEBUI_PASSWORD_HASH in .env (see `scansort hash-password`)
   session_secret: ""            # random string; generated and stored in data_dir if empty
   session_hours: 168
   secure_cookies: auto          # auto = Secure flag when the request is HTTPS

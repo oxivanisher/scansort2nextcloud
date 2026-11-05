@@ -97,8 +97,9 @@ cp .env.example .env                               # set NC_USER (e.g. scanbot) 
 # both containers run as STACK_UID:STACK_GID from .env (default 1000:1000) and never as root
 mkdir -p data inbox && sudo chown 1000:1000 data inbox
 
-# create the UI password hash and paste it into .env (keep the single quotes!)
-docker compose run --rm --no-deps scansort scansort hash-password
+# web UI login: user "admin" (webui.username in config.yaml) and a password of your choice.
+# Create its hash and paste it into .env as WEBUI_PASSWORD_HASH='...' (keep the single quotes!)
+docker run --rm -it ghcr.io/oxivanisher/scansort2nextcloud:latest scansort hash-password
 
 # optional: verify the config and the Nextcloud connection
 docker compose run --rm --no-deps scansort scansort check-config --connect
