@@ -1,0 +1,26 @@
+# Optional: SFTP (SSH) with public-key login instead of FTP. Enable it in .env with
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.sftp.yml
+# and set SFTP_PUBLIC_KEY to the scanner's public key (one line, "ssh-ed25519 AAAA…" or "ssh-rsa AAAA…").
+# FTP is switched off; password logins are disabled. FTP_PASSWORD is not needed.
+#
+# SFTPGo stores its SSH host keys in ./sftp so the scanner's known-hosts entry stays valid:
+#   mkdir -p sftp && sudo chown <STACK_UID>:<STACK_GID> sftp
+# Requires Docker Compose 2.24 or newer (for `!override`).
+services:
+  ftp:
+    environment:
+      SFTPGO_FTPD__BINDINGS__0__PORT: 0
+      SFTPGO_SFTPD__BINDINGS__0__PORT: 2022
+      SFTPGO_SFTPD__PASSWORD_AUTHENTICATION: "false"
+      SFTPGO_SFTPD__KEYBOARD_INTERACTIVE_AUTHENTICATION: "false"
+    volumes:
+      - ./sftp:/var/lib/sftpgo          # host keys (generated on first start)
+    ports: !override
+      - "${SFTP_PORT:-2222}:2022"
+
+configs:
+  ftp_users:
+    content: |
+      {"users": [{"username": "scanner", "status": 1, "home_dir": "/srv/inbox",
+                  "public_keys": ["${SFTP_PUBLIC_KEY:?set SFTP_PUBLIC_KEY in .env}"],
+                  "permissions": {"/": ["*"]}}]}

@@ -109,6 +109,7 @@ docker compose up -d
 Open `http://<host>:8080`, log in, and point your scanner's *scan to FTP* at the host (port 21,
 user `scanner`, `FTP_PASSWORD` from `.env`). Set `FTP_PUBLIC_ADDRESS` in `.env` to the host's IP
 address so passive FTP works. The example uses Docker Compose 2.23 or newer, for inline `configs`.
+For an encrypted upload, see [FTPS](#ftps-optional) or [SFTP with key login](#sftp-with-key-login-optional).
 
 On first start scansort syncs your archive and trains the model. The *Status* page shows progress.
 Until a model exists, pick folders manually; everything you file becomes training data.
@@ -145,6 +146,41 @@ docker compose up -d
   to reload it without a restart.
 - **Older scanners:** if the TLS handshake fails, set `FTP_MIN_TLS_VERSION=12` (the default)
   rather than 13.
+
+### SFTP with key login (optional)
+
+If your scanner supports *SFTP*, use the `docker-compose.sftp.yml` override. It turns FTP off and
+enables SFTP. The scanner logs in as `scanner` **with an SSH key only**; password logins are
+disabled, and `FTP_PASSWORD` is not needed.
+
+```bash
+mkdir -p sftp && sudo chown 1000:1000 sftp          # STACK_UID:STACK_GID; holds the SSH host keys
+cat >> .env <<'ENV'
+COMPOSE_FILE=docker-compose.yml:docker-compose.sftp.yml
+SFTP_PUBLIC_KEY=ssh-ed25519 AAAA... scanner
+ENV
+docker compose up -d
+```
+
+**Where the key comes from** depends on the scanner:
+
+- **The scanner creates its own key pair:** export its public key in the scanner's web UI and
+  put that line into `SFTP_PUBLIC_KEY`.
+- **The scanner expects you to upload a private key:** create a key pair and upload the
+  private key (`scanner_key`) to the scanner. Many scanners only accept RSA keys in PEM format:
+
+  ```bash
+  ssh-keygen -t rsa -b 3072 -m PEM -N "" -C scanner -f scanner_key
+  # SFTP_PUBLIC_KEY = contents of scanner_key.pub
+  ```
+
+Then point the scanner at the host, port `SFTP_PORT` (default **2222**; port 22 is usually taken
+by the host's own SSH server), user `scanner`, folder `/`. SFTPGo generates its host keys on first
+start in `./sftp` (`id_ed25519`, `id_ecdsa` and `id_rsa`), and they survive restarts. If the scanner
+asks for the server's public key, use `sftp/id_rsa.pub` or `sftp/id_ed25519.pub`.
+
+This override needs Docker Compose 2.24 or newer, because it uses `!override` to replace the FTP
+port mappings.
 
 ### Running as a different user
 

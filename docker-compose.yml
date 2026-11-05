@@ -62,5 +62,5 @@ services:
 configs:
   ftp_users:
     content: |
-      {"users": [{"username": "scanner", "password": "${FTP_PASSWORD:?set FTP_PASSWORD in .env}",
+      {"users": [{"username": "scanner", "password": "${FTP_PASSWORD:-}",
                   "status": 1, "home_dir": "/srv/inbox", "permissions": {"/": ["*"]}}]}
