@@ -15,8 +15,8 @@ ingest:
 
 nextcloud:
   url: https://cloud.example.ch
-  user: scanbot                 # dedicated machine account
-  password: ""                  # app password! set via SCANSORT_NEXTCLOUD__PASSWORD
+  user: scanbot                 # login of the dedicated machine account (or SCANSORT_NEXTCLOUD__USER)
+  password: ""                  # its app password! set via SCANSORT_NEXTCLOUD__PASSWORD
   root: /Dokumente              # documents tree, as seen by the machine account
   review_folder: /Dokumente/_Review
   trash_folder: null            # null = WebDAV DELETE (Nextcloud trash bin)

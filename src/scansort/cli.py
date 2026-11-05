@@ -83,12 +83,25 @@ def cmd_check_config(args) -> int:
     print(f"Config OK. Nextcloud: {nc_cfg.url} as {nc_cfg.user}, root {nc_cfg.root}")
     if not settings.webui.password_hash.get_secret_value():
         print("WARNING: webui.password_hash is empty; `scansort serve` will refuse to start.")
+    if not nc_cfg.password.get_secret_value():
+        print("WARNING: nextcloud.password is empty; set the app password of "
+              f"{nc_cfg.user!r} via SCANSORT_NEXTCLOUD__PASSWORD (NC_APP_PASSWORD in .env).")
     if args.connect:
+        from scansort.webdav import DavError
+
         nc = NextcloudClient(
             settings.nextcloud.url, settings.nextcloud.user, settings.nextcloud.password.get_secret_value(),
             verify_tls=settings.nextcloud.verify_tls, timeout=settings.nextcloud.timeout,
         )
-        root = nc.stat(settings.nextcloud.root)
+        try:
+            root = nc.stat(settings.nextcloud.root)
+        except DavError as exc:
+            if exc.status == 401:
+                print(f"ERROR: Nextcloud rejected the login for user {nc_cfg.user!r}: "
+                      "check nextcloud.user and the app password.")
+            else:
+                print(f"ERROR: cannot reach Nextcloud: {exc}")
+            return 1
         if root is None or not root.is_dir:
             print(f"ERROR: root folder {settings.nextcloud.root} not found for user {settings.nextcloud.user}")
             return 1

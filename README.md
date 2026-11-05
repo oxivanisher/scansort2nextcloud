@@ -84,8 +84,8 @@ on your own CPU. No GPU, LLM or external API is needed.
 ```bash
 git clone https://github.com/oxivanisher/scansort2nextcloud.git
 cd scansort2nextcloud
-cp config/config.example.yaml config/config.yaml   # set nextcloud.url / user / root
-cp .env.example .env
+cp config/config.example.yaml config/config.yaml   # set nextcloud.url / root
+cp .env.example .env                               # set NC_USER (e.g. scanbot) + NC_APP_PASSWORD
 
 # create the UI password hash and paste it into .env (keep the single quotes!)
 docker compose run --rm --no-deps scansort scansort hash-password

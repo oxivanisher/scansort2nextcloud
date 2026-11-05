@@ -50,6 +50,8 @@ def test_env_only(tmp_path, monkeypatch):
     "nextcloud: {url: https://x, user: a}\nclassifier: {retrain_cron: 'not a cron'}",
     "nextcloud: {url: https://x, user: a}\ntypo_key: 1",
     "nextcloud: {url: https://x, user: a, review_folder: /Dokumente}",
+    "nextcloud: {url: https://x, user: '  '}",
+    "nextcloud: {url: https://x}",
 ])
 def test_invalid(tmp_path, bad):
     cfg = tmp_path / "config.yaml"

@@ -60,6 +60,14 @@ class NextcloudSettings(_Section):
     retries: int = Field(3, ge=0)
     reconcile_interval: int = Field(600, ge=30)
 
+    @field_validator("user")
+    @classmethod
+    def _user(cls, v: str) -> str:
+        v = v.strip()
+        if not v:
+            raise ValueError("nextcloud.user must be set (login name of the machine account)")
+        return v
+
     @field_validator("url")
     @classmethod
     def _url(cls, v: str) -> str:
