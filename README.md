@@ -87,6 +87,9 @@ cd scansort2nextcloud
 cp config/config.example.yaml config/config.yaml   # set nextcloud.url / root
 cp .env.example .env                               # set NC_USER (e.g. scanbot) + NC_APP_PASSWORD
 
+# both containers run as STACK_UID:STACK_GID from .env (default 1000:1000) and never as root
+mkdir -p data inbox && sudo chown 1000:1000 data inbox
+
 # create the UI password hash and paste it into .env (keep the single quotes!)
 docker compose run --rm --no-deps scansort scansort hash-password
 
@@ -96,23 +99,28 @@ docker compose run --rm --no-deps scansort scansort check-config --connect
 docker compose up -d
 ```
 
-Open `http://<host>:8080`, log in, and point your scanner's *scan to FTP* at the host (user
-`scanner`, the password from `.env`).
+Open `http://<host>:8080`, log in, and point your scanner's *scan to FTP* at the host (port 21,
+user `scanner`, `FTP_PASSWORD` from `.env`). Set `FTP_PUBLIC_ADDRESS` in `.env` to the host's IP
+address so passive FTP works. The example uses Docker Compose 2.23 or newer, for inline `configs`.
 
 On first start scansort syncs your archive and trains the model. The *Status* page shows progress.
 Until a model exists, pick folders manually; everything you file becomes training data.
 
-> **Permissions:** the FTP server and scansort share `./inbox`, so scansort must be able to read
-> **and delete** the scans. The example compose file runs both as `STACK_UID`/`STACK_GID` from
-> `.env`. The bundled `delfer/alpine-ftp-server` image has to start as root, but it writes
-> uploads as that UID/GID into an inbox it owns and that is not group-writable. scansort must
-> therefore use the same UID. See [Running as a different user](#running-as-a-different-user).
+> **FTP server and permissions:** the example uses [SFTPGo](https://github.com/drakkan/sftpgo)
+> as a plain FTP server with a single `scanner` account. It runs unprivileged as
+> `STACK_UID:STACK_GID`, keeps no state (the account is loaded from `.env` on every start) and
+> uploads atomically, so scansort never sees half-written files. The scans land in `./inbox`
+> owned by that UID. scansort deletes them after processing, so it must run as the same UID.
+> Inside the container FTP listens on port 2121, which is published as host port 21. For FTPS,
+> see SFTPGo's `SFTPGO_FTPD__BINDINGS__0__TLS_MODE` and certificate settings.
 
 ### Running as a different user
 
 The container never runs scansort as root. There are two ways to choose the user:
 
-**`PUID`/`PGID` (default).** The container starts as root, remaps its built-in `scansort` user to
+**`user:` / `--user` (used by the example compose file).** See below.
+
+**`PUID`/`PGID` (when you don't set `user:`).** The container starts as root, remaps its built-in `scansort` user to
 `PUID:PGID` (default `1000:1000`), takes ownership of the data directory (not the inbox) and drops
 privileges with `gosu`.
 

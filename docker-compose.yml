@@ -1,37 +1,51 @@
-# Example deployment: an FTP server for the scanner + scansort.
+# Example deployment: an FTP server for the scanner + scansort, both running as one
+# unprivileged stack user (STACK_UID:STACK_GID from .env). Neither container ever runs as root.
+#
 # 1. cp config/config.example.yaml config/config.yaml   (and edit it)
 # 2. cp .env.example .env                                (and fill in the secrets)
-# 3. docker compose up -d
+# 3. mkdir -p data inbox && sudo chown <STACK_UID>:<STACK_GID> data inbox
+# 4. docker compose up -d
 #
-# Both containers use the stack user STACK_UID:STACK_GID from .env. The FTP server must start
-# as root (vsftpd binds port 21 and creates its login user), but it writes the uploaded files
-# as that UID/GID into an inbox owned by it and not group-writable, so scansort (which deletes
-# the scans after processing) must run as the *same* UID.
+# The scanner uploads into ./inbox as STACK_UID; scansort deletes the files after processing,
+# so both containers must use the same UID.
 services:
   ftp:
-    image: delfer/alpine-ftp-server      # or any FTP server image
+    # SFTPGo, configured as a plain FTP server with a single "scanner" account
+    image: drakkan/sftpgo:v2.7-alpine-slim
     restart: unless-stopped
+    user: "${STACK_UID:-1000}:${STACK_GID:-1000}"
     environment:
-      # name|password|folder|uid|gid
-      USERS: "scanner|${FTP_PASSWORD}|/home/scanner|${STACK_UID:-1000}|${STACK_GID:-1000}"
-      ADDRESS: ${FTP_PUBLIC_ADDRESS:-}
+      SFTPGO_FTPD__BINDINGS__0__PORT: 2121
+      SFTPGO_FTPD__BINDINGS__0__FORCE_PASSIVE_IP: ${FTP_PUBLIC_ADDRESS:-}
+      SFTPGO_FTPD__PASSIVE_PORT_RANGE__START: 21000
+      SFTPGO_FTPD__PASSIVE_PORT_RANGE__END: 21010
+      # FTP only: no SFTP, WebDAV, web admin or telemetry listeners
+      SFTPGO_SFTPD__BINDINGS__0__PORT: 0
+      SFTPGO_HTTPD__BINDINGS__0__PORT: 0
+      SFTPGO_TELNET__BINDINGS__0__PORT: 0
+      SFTPGO_TELEMETRY__BIND_PORT: 0
+      # no state: the account is (re)loaded from the config below on every start
+      SFTPGO_DATA_PROVIDER__DRIVER: memory
+      SFTPGO_LOADDATA_FROM: /etc/sftpgo/scanner.json
+      # atomic uploads: files appear in the inbox only once they are complete
+      SFTPGO_COMMON__UPLOAD_MODE: 1
+    configs:
+      - source: ftp_users
+        target: /etc/sftpgo/scanner.json
     volumes:
-      - ./inbox:/home/scanner
+      - ./inbox:/srv/inbox
     ports:
-      - "21:21"
+      - "21:2121"
       - "21000-21010:21000-21010"
 
   scansort:
     image: ghcr.io/oxivanisher/scansort2nextcloud:latest
     # build: .                           # or build locally
     restart: unless-stopped
-    # Pick ONE way to set the user:
-    #  a) PUID/PGID (below): starts as root, chowns ./data, then drops privileges
-    #  b) user: never runs as root; chown ./data to STACK_UID:STACK_GID yourself first
-    # user: "${STACK_UID:-1000}:${STACK_GID:-1000}"
+    user: "${STACK_UID:-1000}:${STACK_GID:-1000}"
+    # Alternative: remove `user:` and set PUID/PGID instead; the container then starts as root,
+    # chowns ./data itself and drops privileges.
     environment:
-      PUID: ${STACK_UID:-1000}
-      PGID: ${STACK_GID:-1000}
       TZ: Europe/Zurich
       SCANSORT_NEXTCLOUD__USER: ${NC_USER:?set NC_USER in .env}
       SCANSORT_NEXTCLOUD__PASSWORD: ${NC_APP_PASSWORD:?set NC_APP_PASSWORD in .env}
@@ -43,3 +57,9 @@ services:
       - ./inbox:/data/inbox
     ports:
       - "8080:8080"
+
+configs:
+  ftp_users:
+    content: |
+      {"users": [{"username": "scanner", "password": "${FTP_PASSWORD:?set FTP_PASSWORD in .env}",
+                  "status": 1, "home_dir": "/srv/inbox", "permissions": {"/": ["*"]}}]}
