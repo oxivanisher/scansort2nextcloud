@@ -143,7 +143,7 @@ def file_document(
         doc.final_path = doc.nc_path = dst
         doc.nc_etag = entry.etag if entry else doc.nc_etag
         doc.filed_at = utcnow()
-        if doc.nc_fileid and doc.text and not svc.labels.is_label_excluded(norm_label):
+        if doc.nc_fileid and doc.text and not svc.labels.is_label_untrained(norm_label):
             row = sess.get(ArchiveFile, doc.nc_fileid) or ArchiveFile(nc_fileid=doc.nc_fileid)
             row.nc_path, row.etag, row.label, row.text = dst, doc.nc_etag or "", norm_label, doc.text
             row.synced_at = utcnow()

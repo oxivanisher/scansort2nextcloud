@@ -120,9 +120,9 @@ def test_queue_and_accept_htmx(client, svc, settings):
     token = login(client)
     doc_id = add_doc(svc, settings)
     page = client.get("/")
-    assert "2025-02-01_Steuern.pdf" in page.text and "Steuern/2025" in page.text
+    assert "20250201_Steuern.pdf" in page.text and "Steuern/2025" in page.text
     r = client.post(f"/doc/{doc_id}/accept", headers={"HX-Request": "true", "X-CSRF-Token": token})
-    assert r.status_code == 200 and "Filed to /Dokumente/Steuern/2025/2025-02-01_Steuern.pdf" in r.text
+    assert r.status_code == 200 and "Filed to /Dokumente/Steuern/2025/20250201_Steuern.pdf" in r.text
     with svc.db.session() as s:
         assert s.get(Document, doc_id).status == Status.FILED
 
@@ -137,7 +137,7 @@ def test_detail_file_and_pdf(client, svc, settings, nc):
     assert pdf.headers["content-type"] == "application/pdf" and pdf.content.startswith(b"%PDF")
 
     sug = client.get(f"/doc/{second}/suggest", params={"label": "Briefe/{year}", "date": "2024-03-03"}).json()
-    assert sug == {"filename": "2024-03-03_Briefe.pdf", "target": "/Dokumente/Briefe/2024"}
+    assert sug == {"filename": "20240303_Briefe.pdf", "target": "/Dokumente/Briefe/2024"}
 
     r = client.post(f"/doc/{first}/file", data={"csrf_token": token, "label": "Privat/Briefe",
                                                 "filename": "Mein Brief", "doc_date": "2025-02-01"},

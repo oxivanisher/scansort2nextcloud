@@ -137,11 +137,20 @@ class ClassifierSettings(_Section):
     top_n: int = Field(3, ge=1, le=10)
     min_samples: int = Field(2, ge=1)
     year_folder_pattern: str = r"^\d{4}$"
-    exclude: list[str] = ["_*"]
+    exclude: list[str] = []
+    include: list[str] = []
+    company_folders: list[str] = []
+    new_company_folder: str | None = None
     ocr_archive: bool = False
     max_archive_file_mb: float = 50
     sync_on_startup: bool = True
     rules: list[Rule] = []
+
+    @field_validator("new_company_folder")
+    @classmethod
+    def _folder(cls, v: str | None) -> str | None:
+        v = (v or "").strip().strip("/")
+        return v or None
 
     @field_validator("retrain_cron")
     @classmethod
@@ -156,7 +165,7 @@ class ClassifierSettings(_Section):
 
 
 class NamingSettings(_Section):
-    template: str = "{date:%Y-%m-%d}_{sender}_{title}"
+    template: str = "{date:%Y%m%d}_{title}"
     max_length: int = Field(120, ge=20, le=250)
     default_title: str = "Scan"
 

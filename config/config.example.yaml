@@ -42,15 +42,18 @@ classifier:
   retrain_cron: "0 3 * * *"     # nightly archive sync + retrain
   top_n: 3
   min_samples: 2                # folders with fewer documents are not learned (still selectable)
-  year_folder_pattern: '^\d{4}$'  # Steuern/2024 + Steuern/2025 -> Steuern/{year}
-  exclude: ["_*"]               # globs relative to root; use "**/_*" for any depth
+  year_folder_pattern: '^\d{4}$'  # year folders at any level below the top: Steuern/2024/Belege -> Steuern/{year}/Belege
+  exclude: []                   # extra globs relative to root, e.g. "Archiv/Alt/**" (review/trash are always excluded)
+  include: []                   # only learn/propose these globs, e.g. ["_*"]; others stay selectable by hand. [] = all
+  company_folders: []           # folders whose subfolders are companies, e.g. ["_Companies", "_Versicherungen"]
+  new_company_folder: null      # propose <this>/<sender> for a known sender without a folder, e.g. "_Companies"
   ocr_archive: false            # OCR image-only archive PDFs for training (slow on first run)
   rules:
     - pattern: "(?i)steuererkl(ä|ae)rung"
       label: "Steuern/{year}"
 
 naming:
-  template: "{date:%Y-%m-%d}_{sender}_{title}"
+  template: "{date:%Y%m%d}_{title}"  # e.g. 20260122_Stromrechnungen.pdf
   max_length: 120
 
 webui:

@@ -1,5 +1,5 @@
-"""Labels are folder paths relative to ``nextcloud.root``, with a trailing year folder normalized
-to ``{year}`` (``Steuern/2024`` → ``Steuern/{year}``)."""
+"""Labels are folder paths relative to ``nextcloud.root``, with year folders normalized to ``{year}``
+(``Steuern/2024`` → ``Steuern/{year}``, ``Steuern/2025/Belege`` → ``Steuern/{year}/Belege``)."""
 
 from __future__ import annotations
 
@@ -13,10 +13,18 @@ YEAR = "{year}"
 
 
 class LabelRules:
-    def __init__(self, root: str, year_folder_pattern: str, exclude: list[str], excluded_paths: list[str]):
+    def __init__(
+        self,
+        root: str,
+        year_folder_pattern: str,
+        exclude: list[str],
+        excluded_paths: list[str],
+        include: list[str] | None = None,
+    ):
         self.root = normpath(root)
         self.year_re = re.compile(year_folder_pattern)
         self.exclude = exclude
+        self.include = include or []
         self.excluded_paths = [normpath(p) for p in excluded_paths if p]
 
     # path <-> relative ---------------------------------------------------------------------------
@@ -33,10 +41,12 @@ class LabelRules:
 
     # normalization -------------------------------------------------------------------------------
     def normalize(self, rel_folder: str) -> str:
+        """Replace every year folder below the top level by ``{year}`` (a top-level year folder
+        is a category of its own)."""
         segs = [s for s in rel_folder.strip("/").split("/") if s]
-        if segs and self.year_re.match(segs[-1]):
-            segs[-1] = YEAR
-        return "/".join(segs)
+        return "/".join(
+            [segs[0]] + [YEAR if self.year_re.match(s) else s for s in segs[1:]] if segs else []
+        )
 
     def label_for_path(self, folder_path: str) -> str | None:
         rel = self.relative(folder_path)
@@ -54,18 +64,31 @@ class LabelRules:
             return True
         if rel == "":
             return False
-        segs = rel.split("/")
-        prefixes = ["/".join(segs[: i + 1]) for i in range(len(segs))]
-        for pattern in self.exclude:
-            pat = pattern.strip("/")
-            base = pat[:-3] if pat.endswith("/**") else pat
-            for prefix in prefixes:
-                if fnmatch.fnmatchcase(prefix, pat) or fnmatch.fnmatchcase(prefix, base):
-                    return True
-        return False
+        return _matches(rel, self.exclude)
 
     def is_label_excluded(self, label: str) -> bool:
         return self.is_excluded(self.absolute(label.replace(YEAR, "0000")))
+
+    def is_label_included(self, label: str) -> bool:
+        """True if the label is within ``classifier.include`` (always true when that list is empty)."""
+        return not self.include or _matches(label.strip("/"), self.include)
+
+    def is_label_untrained(self, label: str) -> bool:
+        """Labels that are neither learned nor proposed (but excluded ones can't even be chosen)."""
+        return self.is_label_excluded(label) or not self.is_label_included(label)
+
+
+def _matches(rel: str, patterns: list[str]) -> bool:
+    """True if ``rel`` or one of its parent folders matches one of the globs."""
+    segs = rel.split("/")
+    prefixes = ["/".join(segs[: i + 1]) for i in range(len(segs))]
+    for pattern in patterns:
+        pat = pattern.strip("/")
+        base = pat[:-3] if pat.endswith("/**") else pat
+        for prefix in prefixes:
+            if fnmatch.fnmatchcase(prefix, pat) or fnmatch.fnmatchcase(prefix, base):
+                return True
+    return False
 
 
 def has_year(label: str) -> bool:

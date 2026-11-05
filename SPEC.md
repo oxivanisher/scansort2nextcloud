@@ -109,9 +109,10 @@ For each ready file:
 ### 5.1 Labels
 
 - A label is a **folder path relative to `nextcloud.root`**, e.g. `Versicherung/Krankenkasse`.
-- **Year normalization:** if the last path segment matches `classifier.year_folder_pattern` (default `^\d{4}$`), it is replaced by the placeholder `{year}`. So `Steuern/2024` and `Steuern/2025` become one label, `Steuern/{year}`.
+- **Year normalization:** every path segment below the top level that matches `classifier.year_folder_pattern` (default `^\d{4}$`) is replaced by the placeholder `{year}`. So `Steuern/2024` and `Steuern/2025` become one label, `Steuern/{year}`, and `Steuern/2025/Belege` becomes `Steuern/{year}/Belege`.
   - When filing, `{year}` is resolved from the document date, falling back to the current year. The year folder is created via MKCOL if it doesn't exist.
-- Excluded from training and proposals: the review folder, and any paths matching `classifier.exclude` (glob list, e.g. `_*`, `Archiv/Alt/**`).
+- Excluded from training and proposals: the review and trash folders (by their exact configured paths), and any paths matching `classifier.exclude` (glob list, default empty, e.g. `Archiv/Alt/**`). Folders starting with `_` are normal folders (the prefix is used for sorting). If `classifier.include` (globs) is set, only matching folders are learned and proposed; all non-excluded folders stay selectable manually.
+- **Company folders:** direct subfolders of `classifier.company_folders` are companies. A document is matched to one by its sender (known_senders, name prefix match) or by company names found in the first 3000 characters of its text (several candidates: the one with the highest summed model probability wins, then the earliest). The company's subfolder with the most documents (or the model's best prediction inside the company) is proposed with source `sender`, first unless the model's top prediction elsewhere has ≥ 0.5. A known sender without a company folder yields a proposal `new_company_folder/<sender>` with source `new`; filing creates the folder.
 
 ### 5.2 Training data
 
@@ -153,7 +154,7 @@ For each ready file:
 
 ### 6.2 Filename
 
-- Template from `naming.template`, e.g. `{date:%Y-%m-%d}_{sender}_{title}`.
+- Template from `naming.template`, default `{date:%Y%m%d}_{title}` (the company is in the folder path, so `{sender}` is left out).
 - `title` defaults to the last non-year segment of the proposed label (e.g. `Krankenkasse`). The user can edit it in the UI.
 - Empty placeholders and their adjacent separators are dropped.
 - Sanitize: no `/ \ : * ? " < > |`, collapse whitespace, max length `naming.max_length` (default 120), always ends in `.pdf`.
@@ -355,14 +356,17 @@ classifier:
   top_n: 3
   min_samples: 2
   year_folder_pattern: '^\d{4}$'
-  exclude: ["_*"]
+  exclude: []
+  include: []
+  company_folders: []
+  new_company_folder: null
   ocr_archive: false
   rules:
     - pattern: "(?i)steuererkl(ä|ae)rung"
       label: "Steuern/{year}"
 
 naming:
-  template: "{date:%Y-%m-%d}_{sender}_{title}"
+  template: "{date:%Y%m%d}_{title}"
   max_length: 120
 
 webui:
@@ -448,6 +452,6 @@ services:
 ## 15. Open points
 
 - Final project name.
-- Exact folder layout and filename convention, to be derived from the user's `tree` output of the documents folder. That determines `year_folder_pattern`, `exclude` and `naming.template` defaults.
+- ~~Exact folder layout and filename convention~~: derived from the user's tree — `[_]Category/Company/[Type]/[Year]`, files `YYYYMMDD_<title>`; see §5.1 (year at any level, `include`, company folders).
 - Whether the scanner produces PDFs with a text layer (this affects OCR load).
 - Whether the archive contains many image-only PDFs. If so, consider a one-time batch OCR of the archive text for training (`classifier.ocr_archive: true`, run once overnight).

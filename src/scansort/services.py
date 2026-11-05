@@ -8,9 +8,12 @@ import threading
 import time
 from datetime import date
 
+from sqlalchemy import func, select
+
 from scansort.classifier import ModelStore, Prediction, propose
+from scansort.companies import CompanyIndex, apply_companies
 from scansort.config import Settings
-from scansort.db import Database
+from scansort.db import Database, Folder
 from scansort.labels import LabelRules, title_from_label
 from scansort.naming import build_filename
 from scansort.webdav import NextcloudClient
@@ -37,6 +40,7 @@ class Services:
             year_folder_pattern=s.classifier.year_folder_pattern,
             exclude=s.classifier.exclude,
             excluded_paths=[s.nextcloud.review_folder, s.nextcloud.trash_folder or ""],
+            include=s.classifier.include,
         )
         self.model = ModelStore(s.model_path)
         self.sync_lock = threading.Lock()
@@ -68,11 +72,23 @@ class Services:
         return ok
 
     # domain helpers ----------------------------------------------------------------------------
+    def company_index(self) -> CompanyIndex:
+        with self.db.session() as sess:
+            rows = sess.execute(select(Folder.label, func.sum(Folder.doc_count)).group_by(Folder.label)).all()
+        labels = {lbl: int(n or 0) for lbl, n in rows if not self.labels.is_label_excluded(lbl)}
+        return CompanyIndex(labels, self.settings.classifier.company_folders)
+
     def propose(self, text: str, sender: str | None) -> list[Prediction]:
         c = self.settings.classifier
-        return propose(
-            text, sender, store=self.model, rules=c.rules, top_n=c.top_n,
-            is_excluded=self.labels.is_label_excluded,
+        preds = propose(
+            text, sender, store=self.model, rules=c.rules, top_n=c.top_n + 2,
+            is_excluded=self.labels.is_label_untrained,
+        )
+        if not (c.company_folders or c.new_company_folder):
+            return preds[: c.top_n]
+        return apply_companies(
+            preds, self.company_index(), text=text, sender=sender, top_n=c.top_n,
+            new_company_folder=c.new_company_folder, is_excluded=self.labels.is_label_excluded,
         )
 
     def filename_for(self, label: str | None, doc_date: date | None, sender: str | None) -> str:

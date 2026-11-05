@@ -40,7 +40,9 @@
           <input type="radio" name="label" value="{{ p.label }}" {% if p.label == selected %}checked{% endif %}>
           <span class="key">{{ loop.index }}</span>
           <span class="lbl">{{ resolve(p.label, doc.doc_date) }}</span>
-          {% if p.source == 'rule' %}<span class="badge">rule</span>{% else %}
+          {% if p.source == 'rule' %}<span class="badge">rule</span>
+          {% elif p.source == 'sender' %}<span class="badge" title="Company folder found by sender / name in the text">company</span>
+          {% elif p.source == 'new' %}<span class="badge" title="This folder does not exist yet and is created on filing">new folder</span>{% else %}
           <span class="confbar small" title="{{ p.probability|pct }}"><span style="width: {{ (p.probability * 100)|round(0) }}%"></span></span>
           <span class="muted">{{ p.probability|pct }}</span>{% endif %}
         </label>

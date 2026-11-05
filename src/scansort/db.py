@@ -103,7 +103,7 @@ class Proposal(Base):
     rank: Mapped[int] = mapped_column(Integer)
     label: Mapped[str] = mapped_column(String)
     probability: Mapped[float] = mapped_column(Float)
-    source: Mapped[str] = mapped_column(String)  # model | rule
+    source: Mapped[str] = mapped_column(String)  # model | rule | sender | new
     model_version: Mapped[str | None] = mapped_column(String, nullable=True)
 
     document: Mapped[Document] = relationship(back_populates="proposals")

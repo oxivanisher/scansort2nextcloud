@@ -253,8 +253,11 @@ nested keys with `__`.
 | `nextcloud.trash_folder`        | `SCANSORT_NEXTCLOUD__TRASH_FOLDER`     | none (Nextcloud trash bin) |
 | `ocr.languages`                 | `SCANSORT_OCR__LANGUAGES='["deu","eng"]'` | `[deu, eng]`         |
 | `classifier.retrain_cron`       | `SCANSORT_CLASSIFIER__RETRAIN_CRON`    | `0 3 * * *`             |
-| `classifier.exclude`            | `SCANSORT_CLASSIFIER__EXCLUDE`         | `["_*"]`                |
-| `naming.template`               | `SCANSORT_NAMING__TEMPLATE`            | `{date:%Y-%m-%d}_{sender}_{title}` |
+| `classifier.exclude`            | `SCANSORT_CLASSIFIER__EXCLUDE`         | `[]`                    |
+| `classifier.include`            | `SCANSORT_CLASSIFIER__INCLUDE`         | `[]` (everything)       |
+| `classifier.company_folders`    | `SCANSORT_CLASSIFIER__COMPANY_FOLDERS` | `[]`                    |
+| `classifier.new_company_folder` | `SCANSORT_CLASSIFIER__NEW_COMPANY_FOLDER` | none                 |
+| `naming.template`               | `SCANSORT_NAMING__TEMPLATE`            | `{date:%Y%m%d}_{title}` |
 | `webui.password_hash`           | `SCANSORT_WEBUI__PASSWORD_HASH`        | — (required)            |
 | `webui.session_secret`          | `SCANSORT_WEBUI__SESSION_SECRET`       | generated and stored in `/data` |
 | `logging.format`                | `SCANSORT_LOGGING__FORMAT`             | `text` (`json` available) |
@@ -269,9 +272,26 @@ Notes:
 - `naming.template` placeholders: `{date:<strftime>}`, `{sender}`, `{title}` (last non-year
   folder of the target, editable in the UI) and `{year}`. An empty placeholder is dropped
   together with its separator.
-- `classifier.exclude` globs are matched against paths relative to `root`. Folders that start
-  with `_` are excluded by default (this also covers `_Review`). Use `**/_*` to exclude them at
-  any depth.
+- The review and trash folders are always excluded, by their exact configured paths.
+  `classifier.exclude` adds more globs, matched against paths relative to `root`
+  (e.g. `Archiv/Alt/**`; `**/_*` would exclude every `_`-prefixed folder at any depth).
+  Folders starting with `_` are otherwise normal folders.
+- `classifier.include` limits learning and proposals to some folders, e.g. `["_*"]` when the
+  documents tree also holds project folders. Other folders can still be chosen by hand, and their
+  files are not downloaded during the archive sync.
+- Year folders (`classifier.year_folder_pattern`) are normalized at any level below the top, so
+  `Steuern/2024/Belege` and `Steuern/2025/Belege` are one folder `Steuern/{year}/Belege`.
+- **Company folders:** with `classifier.company_folders: ["_Companies", "_Versicherungen"]`, every
+  direct subfolder (`_Companies/Salt`) is a company. A document is matched to a company by its
+  sender (`extraction.known_senders`, compared by name: `EWK` matches `EWK Herzogenbuchsee AG`) or
+  by company names in the first part of its text (whole words; an acronym as first word, like
+  `EWK`, also counts on its own). The company's busiest subfolder is then proposed, first unless
+  the model is confident (≥ 50 %) about another folder. If several names appear (the postage
+  stamp says "Post"), the model's predictions decide which company counts.
+  With `classifier.new_company_folder: _Companies`, a known sender without a folder gets a
+  "new folder" proposal `_Companies/<sender>`, which is created when you file into it.
+  Add a `known_senders` entry whose `name` is the folder name when a company is written
+  differently in its letters.
 - `classifier.rules` are regex → label rules that are checked before the model, e.g. to always
   propose `Steuern/{year}` for "Steuererklärung".
 - `extraction.known_senders` maps regex patterns to a sender name used in the filename.

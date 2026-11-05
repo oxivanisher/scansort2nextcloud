@@ -71,6 +71,15 @@ def test_exclusion(rules):
     assert rules.is_excluded("/Outside")
 
 
+def test_default_exclusion_keeps_underscore_folders():
+    from scansort.config import ClassifierSettings
+
+    default = LabelRules("/Dokumente", r"^\d{4}$", ClassifierSettings().exclude, ["/Dokumente/_Review", ""])
+    assert not default.is_excluded("/Dokumente/_Versicherung/CSS")
+    assert default.is_excluded("/Dokumente/_Review")
+    assert default.is_excluded("/Dokumente/_Review/sub")
+
+
 def test_resolve_and_title():
     assert resolve("Steuern/{year}", date(2024, 3, 1)) == "Steuern/2024"
     assert resolve("Steuern/{year}", None, today=date(2026, 1, 1)) == "Steuern/2026"

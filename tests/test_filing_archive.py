@@ -3,6 +3,7 @@ from datetime import date
 import pytest
 
 from scansort.archive import refresh_folders, sync_and_train, sync_archive
+from scansort.config import KnownSender
 from scansort.db import ArchiveFile, Document, Folder, Status
 from scansort.filing import (
     FilingError,
@@ -23,7 +24,7 @@ ARCHIVE = {
     "/Dokumente/Telefon/Swisscom/c.pdf": ["Swisscom Rechnung Mobile Abo Internet"],
     "/Dokumente/Telefon/Swisscom/d.pdf": ["Swisscom Mobile Roaming Abonnement Rechnung"],
     "/Dokumente/Versicherung/e.pdf": ["Einzeldokument Versicherung Police"],
-    "/Dokumente/_Privat/secret.pdf": ["Geheim Geheim"],
+    "/Dokumente/Archiv/Alt/secret.pdf": ["Geheim Geheim"],
     "/Dokumente/root.pdf": ["Liegt im Root"],
 }
 
@@ -33,6 +34,7 @@ def archive(nc):
     for path, lines in ARCHIVE.items():
         nc.add_file(path, make_pdf(lines))
     nc.add_dir("/Dokumente/Leer")
+    nc.add_dir("/Dokumente/_Sortiert")
     return nc
 
 
@@ -52,7 +54,8 @@ def test_sync_archive(svc, archive):
     assert labels == ["Steuern/{year}", "Steuern/{year}", "Telefon/Swisscom", "Telefon/Swisscom", "Versicherung"]
     assert folders["/Dokumente/Leer"] == ("Leer", 0)
     assert folders["/Dokumente/Steuern/2024"] == ("Steuern/{year}", 1)
-    assert not any("_Privat" in p or "_Review" in p for p in folders)
+    assert folders["/Dokumente/_Sortiert"] == ("_Sortiert", 0)  # "_" prefix is just for sorting
+    assert not any("Archiv/Alt" in p or "_Review" in p for p in folders)
 
     # second run: nothing downloaded; deleted file removed from cache
     del archive.files["/Dokumente/Versicherung/e.pdf"]
@@ -72,7 +75,7 @@ def test_sync_and_train_then_propose_and_accept(svc, archive, settings):
 
     doc = accept_document(svc, doc_id)
     assert doc.status == Status.FILED
-    assert doc.final_path == "/Dokumente/Telefon/Swisscom/2025-01-05_Swisscom_Scan.pdf"
+    assert doc.final_path == "/Dokumente/Telefon/Swisscom/20250105_Scan.pdf"
     assert doc.final_path in archive.files
     assert recent_labels(svc) == ["Telefon/Swisscom"]
     with svc.db.session() as s:
@@ -140,8 +143,30 @@ def test_delete_uses_trash_folder(svc, nc, settings):
 def test_create_folder(svc, archive):
     refresh_folders(svc)
     label = create_folder(svc, "Steuern/{year}", "Belege", date(2024, 5, 1))
-    assert label == "Steuern/2024/Belege"
+    assert label == "Steuern/{year}/Belege"
     assert "/Dokumente/Steuern/2024/Belege" in archive.dirs
-    assert "Steuern/2024/Belege" in [o.label for o in label_options(svc)]
+    assert "Steuern/{year}/Belege" in [o.label for o in label_options(svc)]
+    assert create_folder(svc, None, "_Sortiert", None) == "_Sortiert"
     with pytest.raises(FilingError):
-        create_folder(svc, None, "_Hidden", None)
+        create_folder(svc, "Archiv", "Alt", None)
+
+
+def test_company_proposals_end_to_end(svc, archive, settings):
+    svc.settings.classifier.company_folders = ["Telefon"]
+    svc.settings.classifier.new_company_folder = "_Companies"
+    refresh_folders(svc)
+    # cold start (no model): the known sender "Swisscom" finds the company folder Telefon/Swisscom
+    doc_id = ingest_text(svc, settings, ["Swisscom (Schweiz) AG", "Rechnung", "Datum 05.01.2025"])
+    with svc.db.session() as s:
+        doc = s.get(Document, doc_id)
+        assert [(p.label, p.source) for p in doc.proposals] == [("Telefon/Swisscom", "sender")]
+        assert doc.proposed_name == "20250105_Swisscom.pdf"
+
+    # unknown company folder → propose a new one, created on filing
+    svc.settings.extraction.known_senders.append(KnownSender(name="Salt", patterns=["salt mobile"]))
+    doc_id = ingest_text(svc, settings, ["Salt Mobile SA", "Datum 06.01.2025"], name="salt.pdf")
+    with svc.db.session() as s:
+        assert [(p.label, p.source) for p in s.get(Document, doc_id).proposals] == [("_Companies/Salt", "new")]
+    doc = accept_document(svc, doc_id)
+    assert doc.final_path == "/Dokumente/_Companies/Salt/20250106_Salt.pdf"
+    assert "/Dokumente/_Companies/Salt" in archive.dirs

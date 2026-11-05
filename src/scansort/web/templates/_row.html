@@ -16,8 +16,8 @@
     {% if doc.status == 'filed' %}
       <span class="ok">✓ Filed to {{ doc.final_path }}</span>
     {% elif top %}
-      <div>{{ resolve(top.label, doc.doc_date) }}{% if top.source == 'rule' %} <span class="badge">rule</span>{% endif %}</div>
-      <div class="confbar" title="{{ top.probability|pct }}"><span style="width: {{ (top.probability * 100)|round(0) }}%"></span></div>
+      <div>{{ resolve(top.label, doc.doc_date) }}{% if top.source == 'rule' %} <span class="badge">rule</span>{% elif top.source == 'sender' %} <span class="badge">company</span>{% elif top.source == 'new' %} <span class="badge">new folder</span>{% endif %}</div>
+      {% if top.source == 'model' %}<div class="confbar" title="{{ top.probability|pct }}"><span style="width: {{ (top.probability * 100)|round(0) }}%"></span></div>{% endif %}
     {% else %}
       <span class="muted">no proposal</span>
     {% endif %}

@@ -53,7 +53,8 @@ def walk(svc: Services) -> WalkResult:
                     stack.append(entry.path)
             elif entry.name.lower().endswith(".pdf") and label:
                 count += 1
-                result.files.append((entry, label))
+                if svc.labels.is_label_included(label):  # only these are downloaded for training
+                    result.files.append((entry, label))
         if label:
             result.folders[folder] = (label, count)
     return result
@@ -146,7 +147,7 @@ def training_samples(svc: Services) -> list[Sample]:
     return [
         Sample(text=text, label=label, sender=extract_sender(text, cfg))
         for label, text in rows
-        if not svc.labels.is_label_excluded(label)
+        if not svc.labels.is_label_untrained(label)
     ]
 
 

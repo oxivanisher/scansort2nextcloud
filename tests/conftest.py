@@ -34,7 +34,7 @@ def settings(tmp_path, password_hash):
                    "root": "/Dokumente", "review_folder": "/Dokumente/_Review"},
         ocr={"enabled": False},
         extraction={"known_senders": [{"name": "Swisscom", "patterns": ["swisscom"]}]},
-        classifier={"sync_on_startup": False,
+        classifier={"sync_on_startup": False, "exclude": ["Archiv/Alt/**"],
                     "rules": [{"pattern": "(?i)steuererkl(ä|ae)rung", "label": "Steuern/{year}"}]},
         webui={"password_hash": password_hash, "session_secret": "test-secret"},
     )

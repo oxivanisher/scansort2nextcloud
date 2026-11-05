@@ -32,8 +32,8 @@ def test_ingest_text_layer(svc, nc, settings):
         assert doc.text_source == "layer" and "Swisscom" in doc.text
         assert doc.doc_date == date(2025, 3, 14) and not doc.doc_date_guessed
         assert doc.sender == "Swisscom" and doc.amount == "CHF 89.90"
-        assert doc.proposed_name == "2025-03-14_Swisscom_Scan.pdf"
-        assert doc.nc_path == "/Dokumente/_Review/2025-03-14_Swisscom_Scan.pdf"
+        assert doc.proposed_name == "20250314_Scan.pdf"
+        assert doc.nc_path == "/Dokumente/_Review/20250314_Scan.pdf"
         assert doc.nc_fileid == nc.ids[doc.nc_path]
     assert src.exists()  # deletion is the worker's job
 
@@ -45,9 +45,9 @@ def test_ingest_rule_proposal_and_duplicates(svc, nc, settings):
     with svc.db.session() as s:
         da, db_ = s.get(Document, a), s.get(Document, b)
         assert da.top_proposal.label == "Steuern/{year}" and da.top_proposal.source == "rule"
-        assert da.proposed_name == "2025-02-02_Steuern.pdf"
+        assert da.proposed_name == "20250202_Steuern.pdf"
         assert db_.duplicate_of == a
-        assert db_.nc_path == "/Dokumente/_Review/2025-02-02_Steuern (2).pdf"
+        assert db_.nc_path == "/Dokumente/_Review/20250202_Steuern (2).pdf"
 
 
 def test_ingest_no_text_without_ocr(svc, settings):
