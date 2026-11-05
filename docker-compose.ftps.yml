@@ -1,0 +1,17 @@
+# Optional: FTPS (FTP over TLS) for the scanner upload. Enable it in .env with
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.ftps.yml
+# and put a certificate + key into ./certs (readable by STACK_UID), e.g. self-signed:
+#   mkdir -p certs && openssl req -x509 -newkey rsa:3072 -nodes -days 3650 -subj "/CN=scansort-ftp" \
+#     -addext "subjectAltName=IP:<FTP_PUBLIC_ADDRESS>" -keyout certs/ftps.key -out certs/ftps.crt
+#   sudo chown -R <STACK_UID>:<STACK_GID> certs
+# SFTPGo reloads the certificate on SIGHUP: docker compose kill -s HUP ftp
+services:
+  ftp:
+    environment:
+      SFTPGO_FTPD__CERTIFICATE_FILE: /certs/ftps.crt
+      SFTPGO_FTPD__CERTIFICATE_KEY_FILE: /certs/ftps.key
+      # 1 = explicit TLS required (AUTH TLS, port 21); 2 = implicit TLS; 0 = TLS optional
+      SFTPGO_FTPD__BINDINGS__0__TLS_MODE: ${FTP_TLS_MODE:-1}
+      SFTPGO_FTPD__BINDINGS__0__MIN_TLS_VERSION: ${FTP_MIN_TLS_VERSION:-12}
+    volumes:
+      - ./certs:/certs:ro

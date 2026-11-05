@@ -26,9 +26,10 @@ services:
       SFTPGO_TELEMETRY__BIND_PORT: 0
       # no state: the account is (re)loaded from the config below on every start
       SFTPGO_DATA_PROVIDER__DRIVER: memory
-      SFTPGO_LOADDATA_FROM: /etc/sftpgo/scanner.json
+      SFTPGO_DATA_PROVIDER__NAME: /etc/sftpgo/scanner.json
       # atomic uploads: files appear in the inbox only once they are complete
       SFTPGO_COMMON__UPLOAD_MODE: 1
+      SFTPGO_LOG_LEVEL: info
     configs:
       - source: ftp_users
         target: /etc/sftpgo/scanner.json

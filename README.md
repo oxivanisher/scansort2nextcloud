@@ -111,8 +111,33 @@ Until a model exists, pick folders manually; everything you file becomes trainin
 > `STACK_UID:STACK_GID`, keeps no state (the account is loaded from `.env` on every start) and
 > uploads atomically, so scansort never sees half-written files. The scans land in `./inbox`
 > owned by that UID. scansort deletes them after processing, so it must run as the same UID.
-> Inside the container FTP listens on port 2121, which is published as host port 21. For FTPS,
-> see SFTPGo's `SFTPGO_FTPD__BINDINGS__0__TLS_MODE` and certificate settings.
+> Inside the container FTP listens on port 2121, which is published as host port 21.
+
+### FTPS (optional)
+
+If your scanner supports *FTP over TLS*, enable it with the `docker-compose.ftps.yml` override:
+
+```bash
+mkdir -p certs
+openssl req -x509 -newkey rsa:3072 -nodes -days 3650 -subj "/CN=scansort-ftp" \
+  -addext "subjectAltName=IP:192.168.1.10" \
+  -keyout certs/ftps.key -out certs/ftps.crt        # use your FTP_PUBLIC_ADDRESS
+sudo chown -R 1000:1000 certs                         # STACK_UID:STACK_GID
+echo 'COMPOSE_FILE=docker-compose.yml:docker-compose.ftps.yml' >> .env
+docker compose up -d
+```
+
+- **Modes:** by default TLS is **required** (explicit FTPS, `AUTH TLS` on port 21), so plain-FTP
+  logins are refused. Set `FTP_TLS_MODE=2` for implicit FTPS, or `0` to allow both.
+- **Self-signed certificate:** most scanners accept it. Some can import the certificate file to
+  verify it, and that check only passes if the certificate names the IP address the scanner
+  connects to (the `subjectAltName`).
+- **Your own certificate:** you can also use one from your own CA, or a Let's Encrypt one, in
+  place of the self-signed one.
+- **Replacing the certificate:** after replacing the files, run `docker compose kill -s HUP ftp`
+  to reload it without a restart.
+- **Older scanners:** if the TLS handshake fails, set `FTP_MIN_TLS_VERSION=12` (the default)
+  rather than 13.
 
 ### Running as a different user
 
