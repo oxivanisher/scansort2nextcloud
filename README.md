@@ -102,8 +102,44 @@ Open `http://<host>:8080`, log in, and point your scanner's *scan to FTP* at the
 On first start scansort syncs your archive and trains the model. The *Status* page shows progress.
 Until a model exists, pick folders manually; everything you file becomes training data.
 
-> **Permissions:** the FTP server and scansort share `./inbox`. Set `PUID`/`PGID` to the UID/GID
-> the FTP server writes files as, so scansort can read and delete them.
+> **Permissions:** the FTP server and scansort share `./inbox`. Run scansort as a user that can
+> read **and delete** the files the FTP server writes (same UID, or a shared group with write
+> access to the folder). See [Running as a different user](#running-as-a-different-user).
+
+### Running as a different user
+
+The container never runs scansort as root. There are two ways to choose the user:
+
+**`PUID`/`PGID` (default).** The container starts as root, remaps its built-in `scansort` user to
+`PUID:PGID` (default `1000:1000`), takes ownership of the data directory (not the inbox) and drops
+privileges with `gosu`.
+
+```yaml
+environment:
+  PUID: 1500
+  PGID: 1500
+```
+
+**`user:` / `--user` (one user per stack).** The container runs as that UID:GID from the first
+process on. It needs no root, no passwd entry and no capabilities. Nothing is chowned for you, so
+the data directory must be writable by that user:
+
+```bash
+sudo chown -R 1500:1500 ./data ./inbox
+```
+
+```yaml
+services:
+  scansort:
+    image: ghcr.io/oxivanisher/scansort2nextcloud:latest
+    user: "1500:1500"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+```
+
+A fresh named volume for `/data` also works, because the image's `/data` is world-writable with
+the sticky bit set. If the data directory is not writable, the container exits with a message that
+gives the `chown` command to run. `/config` only needs to be readable.
 
 ### Container image
 

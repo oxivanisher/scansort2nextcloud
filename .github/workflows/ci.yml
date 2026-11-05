@@ -23,8 +23,8 @@ jobs:
       matrix:
         python: ["3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python }}
           cache: pip
@@ -44,14 +44,14 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: docker/setup-qemu-action@v3
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-qemu-action@v4
+      - uses: docker/setup-buildx-action@v4
 
       - name: Docker metadata
         id: meta
-        uses: docker/metadata-action@v5
+        uses: docker/metadata-action@v6
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
@@ -64,7 +64,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build (amd64) for smoke test
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64
@@ -91,10 +91,16 @@ jobs:
           curl -fsS http://127.0.0.1:8080/healthz
           docker logs scansort-smoke
           docker rm -f scansort-smoke
+          # arbitrary non-root user (docker run --user / compose user:), fresh named volume
+          docker run --rm --user 4321:4321 -v scansort-smoke-data:/data \
+            -e SCANSORT_NEXTCLOUD__URL=http://127.0.0.1:9 -e SCANSORT_NEXTCLOUD__USER=bot \
+            -e SCANSORT_WEBUI__PASSWORD_HASH="$HASH" scansort:ci scansort migrate
+          docker run --rm --user 4321:4321 scansort:ci sh -c 'test "$HOME" = /tmp'
+          docker volume rm scansort-smoke-data
 
       - name: Log in to GHCR
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -102,7 +108,7 @@ jobs:
 
       - name: Build & push (amd64 + arm64)
         if: github.event_name != 'pull_request'
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64,linux/arm64

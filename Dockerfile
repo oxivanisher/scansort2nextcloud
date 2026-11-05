@@ -25,7 +25,9 @@ RUN apt-get update \
  && rm -rf /var/lib/apt/lists/* \
  && groupadd -g 1000 scansort \
  && useradd -u 1000 -g scansort -d /data -s /usr/sbin/nologin scansort \
- && mkdir -p /config /data/inbox
+ && mkdir -p /config /data/inbox \
+ # world-writable (sticky) so a fresh named volume also works with `--user <uid>:<gid>`
+ && chmod 1777 /data
 
 COPY --from=build /opt/venv /opt/venv
 COPY docker/entrypoint.sh /entrypoint.sh

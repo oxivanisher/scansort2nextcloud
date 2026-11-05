@@ -19,8 +19,12 @@ services:
     image: ghcr.io/oxivanisher/scansort2nextcloud:latest
     # build: .                           # or build locally
     restart: unless-stopped
+    # Pick ONE way to set the user (it must be able to read/delete files the FTP server writes):
+    #  a) PUID/PGID: container starts as root, fixes ownership of ./data, then drops privileges
+    #  b) user: runs as that UID:GID from the start (one user per stack); chown ./data yourself
+    # user: "1000:1000"
     environment:
-      PUID: 1000                         # must be able to read/delete files the FTP server writes
+      PUID: 1000
       PGID: 1000
       TZ: Europe/Zurich
       SCANSORT_NEXTCLOUD__PASSWORD: ${NC_APP_PASSWORD}
