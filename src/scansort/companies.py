@@ -12,6 +12,7 @@ import re
 from dataclasses import dataclass
 
 from scansort.classifier import Prediction
+from scansort.extraction import literal_name_regex, normalize_apostrophes
 
 # legal-form suffixes that letters often omit or spell differently
 _LEGAL = re.compile(
@@ -36,7 +37,7 @@ def core_name(name: str) -> str:
 
 
 def _norm(name: str) -> list[str]:
-    return core_name(name).casefold().split()
+    return normalize_apostrophes(core_name(name)).casefold().split()
 
 
 def same_company(a: str, b: str) -> bool:
@@ -52,7 +53,7 @@ def _text_patterns(name: str) -> list[re.Pattern]:
     core = core_name(name)
     out = []
     if len(core) >= MIN_NAME_CHARS:
-        words = r"\s+".join(re.escape(w) for w in core.split())
+        words = r"\s+".join(literal_name_regex(w) for w in core.split())
         out.append(re.compile(rf"(?<!\w){words}(?!\w)", re.IGNORECASE))
     first = core.split()[0] if core.split() else ""
     # an acronym as first word ("EWK Hezogenbuchsee AG") identifies the company on its own
@@ -91,7 +92,7 @@ class CompanyIndex:
 
     def in_text(self, text: str) -> list[Company]:
         """Companies whose name appears near the top of the text, earliest (then longest) first."""
-        head = (text or "")[:TEXT_WINDOW]
+        head = normalize_apostrophes((text or "")[:TEXT_WINDOW])
         found = []
         for c in self.companies:
             positions = [m.start() for p in self._patterns[c.label] if (m := p.search(head))]

@@ -17,6 +17,9 @@ _DAY_MONTH_YEAR = re.compile(rf"(?<!\d)(\d{{1,2}})\.?\s+({_WORD})\s+(\d{{4}})(?!
 _MONTH_DAY_YEAR = re.compile(rf"\b({_WORD})\s+(\d{{1,2}})(?:st|nd|rd|th)?,?\s+(\d{{4}})(?!\d)")
 
 _KEYWORD_WINDOW = 40
+# letters and OCR write O’Neill / O‘Neill / O`Neill / O´Neill for O'Neill
+_APOSTROPHES = str.maketrans(dict.fromkeys("’‘ʼ`´′", "'"))
+_APOSTROPHE_RX = r"(?:'\s?|\s)?"  # OCR also drops the apostrophe or reads it as a space
 TYPE_WINDOW = 2000  # document types are looked for in the heading area at the top
 _HEADING_SLACK = 30  # a line at most this much longer than the keyword counts as a heading
 
@@ -188,10 +191,25 @@ def extract_type(text: str, cfg: ExtractionSettings) -> str | None:
     return found[0].name if found else None
 
 
+def normalize_apostrophes(s: str) -> str:
+    """Typographic apostrophes → ``'`` (same length, so match positions stay valid)."""
+    return s.translate(_APOSTROPHES)
+
+
+def literal_name_regex(name: str) -> str:
+    """Regex for a name as written, tolerant of how its apostrophes were printed or OCR'd.
+    Use on normalized text (:func:`normalize_apostrophes`)."""
+    return re.escape(normalize_apostrophes(name)).replace("'", _APOSTROPHE_RX)
+
+
 def extract_sender(text: str, cfg: ExtractionSettings) -> str | None:
+    text = normalize_apostrophes(text)
     for sender in cfg.known_senders:
-        patterns = sender.patterns or [re.escape(sender.name)]
-        for pat in patterns:
+        if not sender.patterns:
+            if re.search(rf"(?<!\w){literal_name_regex(sender.name)}(?!\w)", text, re.IGNORECASE):
+                return sender.name
+            continue
+        for pat in map(normalize_apostrophes, sender.patterns):
             try:
                 if re.search(pat, text, re.IGNORECASE):
                     return sender.name

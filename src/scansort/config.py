@@ -95,9 +95,40 @@ class OcrSettings(_Section):
     extra_args: list[str] = []
 
 
+def _check_pattern(v: str, *, lenient: bool = False) -> str:
+    """A regex must compile (unless ``lenient``: then it is used as plain text) and must not match
+    an empty text, or it would match every document (an empty entry, a trailing ``|``, ``x*``)."""
+    if not v.strip():
+        raise ValueError("empty pattern: it would match every document")
+    try:
+        matches_empty = re.search(v, "") is not None
+    except re.error as exc:
+        if lenient:
+            return v
+        raise ValueError(f"invalid regex {v!r}: {exc}") from exc
+    if matches_empty:
+        raise ValueError(
+            f"pattern {v!r} matches an empty text, so it would match every document "
+            "(look for an empty alternative such as a trailing '|', or a '*'/'?' on everything)"
+        )
+    return v
+
+
 class KnownSender(_Section):
     name: str
     patterns: list[str] = []
+
+    @field_validator("name")
+    @classmethod
+    def _name(cls, v: str) -> str:
+        if not v.strip():
+            raise ValueError("empty sender name")
+        return v.strip()
+
+    @field_validator("patterns")
+    @classmethod
+    def _patterns(cls, v: list[str]) -> list[str]:
+        return [_check_pattern(p, lenient=True) for p in v]
 
 
 class ExtractionSettings(_Section):
@@ -134,11 +165,7 @@ class Rule(_Section):
     @field_validator("pattern")
     @classmethod
     def _compiles(cls, v: str) -> str:
-        try:
-            re.compile(v)
-        except re.error as exc:
-            raise ValueError(f"invalid regex {v!r}: {exc}") from exc
-        return v
+        return _check_pattern(v)
 
     @field_validator("label")
     @classmethod

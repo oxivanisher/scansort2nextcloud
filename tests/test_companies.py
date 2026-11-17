@@ -92,3 +92,11 @@ def test_year_anywhere_and_include():
     assert rules.is_label_untrained("CNC Jobs")
     assert not rules.is_label_excluded("CNC Jobs")  # still selectable by hand
     assert LabelRules("/Dokumente", r"^\d{4}$", [], []).is_label_included("CNC Jobs")
+
+
+def test_company_name_apostrophe_variants():
+    index = CompanyIndex({"_Companies/D'Amico Treuhand": 3}, ["_Companies"])
+    for text in ("D’Amico Treuhand GmbH", "D'Amico Treuhand", "D Amico Treuhand", "DAmico Treuhand"):
+        assert [c.name for c in index.in_text(text)] == ["D'Amico Treuhand"], text
+    assert index.in_text("Swisscom AG") == []
+    assert index.by_sender("D’Amico Treuhand AG") is not None

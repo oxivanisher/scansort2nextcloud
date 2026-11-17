@@ -102,3 +102,27 @@ def test_document_types_ranked_and_limited():
     custom = ExtractionSettings(document_types=["Stromrechnung"])
     assert extract_type("EWK\nStromrechnung 2025\nRechnung", custom) == "Stromrechnung"
     assert extract_fields("Rechnung\nDatum 05.01.2025", CFG, TODAY).doc_type == "Rechnung"
+
+
+@pytest.mark.parametrize("text", [
+    "D'Amico Treuhand GmbH", "D’Amico Treuhand GmbH", "D‘Amico Treuhand", "D`Amico", "D Amico", "DAmico",
+])
+def test_sender_apostrophe_variants(text):
+    cfg = ExtractionSettings(known_senders=[KnownSender(name="D'Amico")])
+    assert extract_sender(text, cfg) == "D'Amico"
+    # a pattern written with either apostrophe matches either spelling in the text
+    for pat in ("d'amico", "d’amico"):
+        cfg = ExtractionSettings(known_senders=[KnownSender(name="D'Amico", patterns=[pat])])
+        assert extract_sender(text.replace("D Amico", "D’Amico").replace("DAmico", "D'Amico"), cfg) == "D'Amico"
+
+
+def test_sender_name_whole_words():
+    cfg = ExtractionSettings(known_senders=[KnownSender(name="D'Amico")])
+    assert extract_sender("Swisscom AG\nRechnung", cfg) is None
+    assert extract_sender("XD'Amicos", cfg) is None
+
+
+@pytest.mark.parametrize("pattern", ["", "  ", "d'amico|", "|d'amico", "(d'amico)?", "x*", "^"])
+def test_patterns_matching_everything_are_rejected(pattern):
+    with pytest.raises(ValueError, match="every document"):
+        KnownSender(name="D'Amico", patterns=[pattern])

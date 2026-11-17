@@ -303,7 +303,11 @@ Notes:
   differently in its letters.
 - `classifier.rules` are regex → label rules that are checked before the model, e.g. to always
   propose `Steuern/{year}` for "Steuererklärung".
-- `extraction.known_senders` maps regex patterns to a sender name used in the filename.
+- `extraction.known_senders` maps regex patterns to a sender name used in the filename. Without
+  `patterns`, the name itself is matched as whole words. Apostrophes are matched however they were
+  printed (`D'Amico`, `D’Amico`, and OCR's `D Amico`/`DAmico`), also for company folder names.
+  A pattern that would match every document (empty, or with an empty alternative like a trailing
+  `|`) is rejected on startup.
 
 ## Using the web UI
 

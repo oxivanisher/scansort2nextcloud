@@ -58,3 +58,14 @@ def test_invalid(tmp_path, bad):
     cfg.write_text(bad)
     with pytest.raises(ValidationError):
         load_settings(cfg)
+
+
+def test_rule_pattern_matching_everything_is_rejected():
+    import pytest
+
+    from scansort.config import Rule
+
+    with pytest.raises(ValueError, match="every document"):
+        Rule(pattern="steuer|", label="Steuern/{year}")
+    with pytest.raises(ValueError, match="invalid regex"):
+        Rule(pattern="(steuer", label="Steuern/{year}")
