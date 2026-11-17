@@ -75,7 +75,7 @@ def test_sync_and_train_then_propose_and_accept(svc, archive, settings):
 
     doc = accept_document(svc, doc_id)
     assert doc.status == Status.FILED
-    assert doc.final_path == "/Dokumente/Telefon/Swisscom/20250105_Scan.pdf"
+    assert doc.final_path == "/Dokumente/Telefon/Swisscom/20250105_Rechnung.pdf"
     assert doc.final_path in archive.files
     assert recent_labels(svc) == ["Telefon/Swisscom"]
     with svc.db.session() as s:
@@ -160,7 +160,7 @@ def test_company_proposals_end_to_end(svc, archive, settings):
     with svc.db.session() as s:
         doc = s.get(Document, doc_id)
         assert [(p.label, p.source) for p in doc.proposals] == [("Telefon/Swisscom", "sender")]
-        assert doc.proposed_name == "20250105_Swisscom.pdf"
+        assert doc.proposed_name == "20250105_Swisscom_Rechnung.pdf"
 
     # unknown company folder → propose a new one, created on filing
     svc.settings.extraction.known_senders.append(KnownSender(name="Salt", patterns=["salt mobile"]))

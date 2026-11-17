@@ -66,7 +66,7 @@ def ingest_file(svc: Services, path: Path) -> int:
         text, source, pages, upload_path = extract_text(svc, path, workdir)
         fields = extract_fields(text, s.extraction)
         preds = svc.propose(text, fields.sender)
-        name = svc.filename_for(preds[0].label if preds else None, fields.doc_date, fields.sender)
+        name = svc.filename_for(preds[0].label if preds else None, fields.doc_date, fields.sender, fields.doc_type)
 
         svc.ensure_review_folder()
         review = s.nextcloud.review_folder

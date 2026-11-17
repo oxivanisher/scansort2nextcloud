@@ -91,10 +91,12 @@ class Services:
             new_company_folder=c.new_company_folder, is_excluded=self.labels.is_label_excluded,
         )
 
-    def filename_for(self, label: str | None, doc_date: date | None, sender: str | None) -> str:
+    def filename_for(
+        self, label: str | None, doc_date: date | None, sender: str | None, doc_type: str | None = None
+    ) -> str:
         n = self.settings.naming
         return build_filename(
-            n.template, doc_date=doc_date, sender=sender, title=title_from_label(label),
+            n.template, doc_date=doc_date, sender=sender, title=title_from_label(label), doc_type=doc_type,
             max_length=n.max_length, fallback_title=n.default_title,
         )
 

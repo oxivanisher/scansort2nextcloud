@@ -111,6 +111,20 @@ class ExtractionSettings(_Section):
         "Amount due",
     ]
     known_senders: list[KnownSender] = []
+    # document types for the {type} filename field; whole words, the first heading-like match wins
+    document_types: list[str] = [
+        "Nebenkostenabrechnung", "Heizkostenabrechnung", "Lohnabrechnung", "Gehaltsabrechnung",
+        "Kreditkartenabrechnung", "Leistungsabrechnung", "Schlussabrechnung", "Abrechnung",
+        "Prämienrechnung", "Steuerrechnung", "Rechnung", "Mahnung", "Zahlungserinnerung", "Gutschrift",
+        "Quittung", "Kassenbeleg", "Kontoauszug", "Depotauszug", "Jahresauszug", "Versicherungspolice",
+        "Police", "Mietvertrag", "Arbeitsvertrag", "Vertrag", "Offerte", "Auftragsbestätigung",
+        "Bestellbestätigung", "Lieferschein", "Kündigung", "Lohnausweis", "Steuererklärung",
+        "Veranlagung", "Bescheinigung", "Arbeitszeugnis", "Zeugnis",
+        "Invoice", "Receipt", "Bank statement", "Account statement", "Statement", "Payslip", "Pay slip",
+        "Credit note", "Payment reminder", "Reminder", "Quotation", "Quote", "Order confirmation",
+        "Booking confirmation", "Delivery note", "Insurance policy", "Contract", "Tax return",
+        "Certificate",
+    ]
 
 
 class Rule(_Section):
@@ -165,7 +179,7 @@ class ClassifierSettings(_Section):
 
 
 class NamingSettings(_Section):
-    template: str = "{date:%Y%m%d}_{title}"
+    template: str = "{date:%Y%m%d}_{title}_{type}"
     max_length: int = Field(120, ge=20, le=250)
     default_title: str = "Scan"
 

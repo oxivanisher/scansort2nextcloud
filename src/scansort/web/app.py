@@ -11,7 +11,7 @@ from datetime import date, datetime
 from pathlib import Path
 from urllib.parse import quote
 
-from fastapi import Depends, FastAPI, Form, Request
+from fastapi import Depends, FastAPI, Form, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -21,7 +21,7 @@ from sqlalchemy.orm import selectinload
 from scansort import __version__
 from scansort.config import Settings
 from scansort.db import Document, IngestAttempt, Status, utcnow
-from scansort.extraction import date_choices
+from scansort.extraction import date_choices, document_types, extract_type
 from scansort.filing import (
     FilingError,
     accept_document,
@@ -34,6 +34,7 @@ from scansort.filing import (
     target_folder,
 )
 from scansort.labels import resolve
+from scansort.naming import uses_type
 from scansort.services import Services
 from scansort.textextract import ocr_available
 from scansort.web.auth import (
@@ -104,6 +105,7 @@ def create_app(settings: Settings, services: Services | None = None, background:
         raise RuntimeError(problem + " (environment variable: SCANSORT_WEBUI__PASSWORD_HASH)")
     svc = services or Services(settings)
     date_fmt = settings.webui.date_format
+    type_in_name = uses_type(settings.naming.template)
     templates.env.filters["dt"] = lambda v: _dt(v, date_fmt)
     templates.env.filters["d"] = lambda v: _fmt_date(v, date_fmt)
     templates.env.globals["date_placeholder"] = date_placeholder(date_fmt)
@@ -339,6 +341,7 @@ def create_app(settings: Settings, services: Services | None = None, background:
             "selected": selected,
             "target": target_folder(svc, selected, doc.doc_date) if selected else "",
             "date_choices": date_choices(doc.text, settings.extraction),
+            "type_choices": document_types(doc.text, settings.extraction) if type_in_name else [],
             "today": date.today(),
             "nc_error": nc_error,
             "resolve": resolve,
@@ -371,14 +374,20 @@ def create_app(settings: Settings, services: Services | None = None, background:
         return Response(content, media_type=ctype, headers={"Cache-Control": "private, max-age=3600"})
 
     @app.get("/doc/{doc_id}/suggest")
-    def suggest(doc_id: int, label: str = "", date: str = "", _user: str = Auth):
+    def suggest(
+        doc_id: int, label: str = "", date: str = "", doc_type: str | None = Query(None, alias="type"),
+        _user: str = Auth,
+    ):
         doc = get_doc(doc_id)
         if doc is None:
             return JSONResponse({"error": "not found"}, status_code=404)
         d = parse_date(date) or doc.doc_date
         label = label.strip().strip("/")
+        # no type parameter: the detected type; an empty one: none
+        if doc_type is None:
+            doc_type = extract_type(doc.text, settings.extraction)
         return {
-            "filename": svc.filename_for(label or None, d, doc.sender),
+            "filename": svc.filename_for(label or None, d, doc.sender, (doc_type or "").strip() or None),
             "target": target_folder(svc, label, d) if label else "",
         }
 

@@ -17,6 +17,8 @@ _DAY_MONTH_YEAR = re.compile(rf"(?<!\d)(\d{{1,2}})\.?\s+({_WORD})\s+(\d{{4}})(?!
 _MONTH_DAY_YEAR = re.compile(rf"\b({_WORD})\s+(\d{{1,2}})(?:st|nd|rd|th)?,?\s+(\d{{4}})(?!\d)")
 
 _KEYWORD_WINDOW = 40
+TYPE_WINDOW = 2000  # document types are looked for in the heading area at the top
+_HEADING_SLACK = 30  # a line at most this much longer than the keyword counts as a heading
 
 _AMOUNT_NUM = r"\d{1,3}(?:['’ .,]\d{3})*(?:[.,](?:\d{2}|-{1,2}))|\d+(?:[.,](?:\d{2}|-{1,2}))?"
 _CUR = r"CHF|EUR|USD|SFr\.?|Fr\.|€|\$"
@@ -35,11 +37,19 @@ class DateCandidate:
 
 
 @dataclass
+class TypeCandidate:
+    name: str
+    pos: int
+    heading: bool
+
+
+@dataclass
 class ExtractedFields:
     doc_date: date | None
     doc_date_guessed: bool
     sender: str | None
     amount: str | None
+    doc_type: str | None = None
 
 
 @lru_cache(maxsize=1)
@@ -133,6 +143,51 @@ def date_choices(
     return sorted(best.values(), key=lambda c: (-c.score, c.pos))[:limit]
 
 
+@lru_cache(maxsize=256)
+def _type_pattern(keyword: str) -> re.Pattern[str]:
+    words = r"\s+".join(re.escape(w) for w in keyword.split())
+    return re.compile(rf"(?<!\w){words}(?!\w)", re.IGNORECASE)
+
+
+def document_types(text: str, cfg: ExtractionSettings, limit: int = 5) -> list[TypeCandidate]:
+    """Document types (``extraction.document_types``) named near the top of ``text``, best first.
+
+    Whole words only (``Rechnungsnummer`` is no ``Rechnung``). A keyword on a short line of its own
+    (a heading such as ``Rechnung Nr. 4711``) ranks before one in running text; then the earliest
+    wins, and at the same spot the longer keyword (``Credit note`` before ``Note``).
+    """
+    head = text[:TYPE_WINDOW]
+    best: dict[str, TypeCandidate] = {}
+    for kw in cfg.document_types:
+        kw = kw.strip()
+        if not kw:
+            continue
+        for m in _type_pattern(kw).finditer(head):
+            line_start = head.rfind("\n", 0, m.start()) + 1
+            line_end = head.find("\n", m.end())
+            line = head[line_start:line_end if line_end >= 0 else len(head)].strip()
+            cand = TypeCandidate(kw, m.start(), len(line) <= len(m.group(0)) + _HEADING_SLACK)
+            key = kw.lower()
+            cur = best.get(key)
+            if cur is None or _type_rank(cand) < _type_rank(cur):
+                best[key] = cand
+    ranked = sorted(best.values(), key=_type_rank)
+    out: list[TypeCandidate] = []
+    for c in ranked:  # drop a shorter keyword found inside a longer one at the same spot
+        if not any(o.pos <= c.pos < o.pos + len(o.name) and len(o.name) > len(c.name) for o in out):
+            out.append(c)
+    return out[:limit]
+
+
+def _type_rank(c: TypeCandidate) -> tuple[bool, int, int]:
+    return (not c.heading, c.pos, -len(c.name))
+
+
+def extract_type(text: str, cfg: ExtractionSettings) -> str | None:
+    found = document_types(text, cfg, limit=1)
+    return found[0].name if found else None
+
+
 def extract_sender(text: str, cfg: ExtractionSettings) -> str | None:
     for sender in cfg.known_senders:
         patterns = sender.patterns or [re.escape(sender.name)]
@@ -192,4 +247,5 @@ def extract_fields(text: str, cfg: ExtractionSettings, today: date | None = None
         doc_date_guessed=doc_date is None,
         sender=extract_sender(text, cfg) if text else None,
         amount=extract_amount(text, cfg) if text else None,
+        doc_type=extract_type(text, cfg) if text else None,
     )

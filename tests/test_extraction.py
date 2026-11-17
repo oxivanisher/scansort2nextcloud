@@ -3,7 +3,15 @@ from datetime import date
 import pytest
 
 from scansort.config import ExtractionSettings, KnownSender
-from scansort.extraction import date_choices, extract_amount, extract_date, extract_fields, extract_sender
+from scansort.extraction import (
+    date_choices,
+    document_types,
+    extract_amount,
+    extract_date,
+    extract_fields,
+    extract_sender,
+    extract_type,
+)
 
 CFG = ExtractionSettings(known_senders=[KnownSender(name="CSS", patterns=["css versicherung", r"css\s+kranken"])])
 TODAY = date(2026, 6, 1)
@@ -70,3 +78,27 @@ def test_date_choices_ranked_and_distinct():
     assert choices[0].value == extract_date(text, CFG, TODAY)
     assert len(date_choices(" ".join(f"{d}.01.2026" for d in range(1, 20)), CFG, TODAY, limit=4)) == 4
     assert date_choices("", CFG, TODAY) == []
+
+
+@pytest.mark.parametrize("text,expected", [
+    ("Swisscom AG\nRechnung Nr. 4711\nRechnungsdatum 05.01.2025", "Rechnung"),
+    ("Verwaltung AG\nNEBENKOSTENABRECHNUNG 2025\nAbrechnung der Heizkosten", "Nebenkostenabrechnung"),
+    ("Sehr geehrte Damen und Herren, zu Ihrer Rechnung vom 1. März\nMahnung\n", "Mahnung"),  # heading wins
+    ("ACME Ltd\nINVOICE #123\nBank statement attached", "Invoice"),
+    ("Acme Bank\nBank statement\nperiod 01.01.-31.01.", "Bank statement"),
+    ("Rechnungsnummer 4711, Rechnungsdatum 05.01.2025", None),  # whole words only
+    ("Berechnung der Prämie", None),
+    ("", None),
+])
+def test_extract_type(text, expected):
+    assert extract_type(text, CFG) == expected
+
+
+def test_document_types_ranked_and_limited():
+    text = "Firma AG\nGutschrift\nDiese Gutschrift bezieht sich auf die Rechnung 4711 und den Vertrag 12."
+    assert [c.name for c in document_types(text, CFG)] == ["Gutschrift", "Rechnung", "Vertrag"]
+    assert [c.name for c in document_types(text, CFG, limit=2)] == ["Gutschrift", "Rechnung"]
+    assert document_types("x" * 3000 + " Rechnung", CFG) == []  # only the top of the document
+    custom = ExtractionSettings(document_types=["Stromrechnung"])
+    assert extract_type("EWK\nStromrechnung 2025\nRechnung", custom) == "Stromrechnung"
+    assert extract_fields("Rechnung\nDatum 05.01.2025", CFG, TODAY).doc_type == "Rechnung"

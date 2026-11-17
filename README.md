@@ -39,8 +39,9 @@ on your own CPU. No GPU, LLM or external API is needed.
 - 📅 **Year folders handled automatically.** `Steuern/2024` and `Steuern/2025` are learned as one
   label, `Steuern/{year}`. The year comes from the document date and the folder is created if
   needed.
-- 🏷️ **Smart filenames**, e.g. `2026-01-05_CSS_Krankenkasse.pdf`, from the extracted document date,
-  a known sender and the target folder. The template is configurable.
+- 🏷️ **Smart filenames**, e.g. `20260105_Swisscom_Rechnung.pdf`, from the extracted document date,
+  the target folder and the document type found in the text (Rechnung, Abrechnung, Invoice, …).
+  The template is configurable.
 - ✅ **Always a human in the loop.** Nothing is filed automatically. You get a review queue with
   one-click *Accept*, a detail view with PDF preview, top-3 proposals, a searchable folder picker,
   "new folder", and keyboard shortcuts.
@@ -257,7 +258,7 @@ nested keys with `__`.
 | `classifier.include`            | `SCANSORT_CLASSIFIER__INCLUDE`         | `[]` (everything)       |
 | `classifier.company_folders`    | `SCANSORT_CLASSIFIER__COMPANY_FOLDERS` | `[]`                    |
 | `classifier.new_company_folder` | `SCANSORT_CLASSIFIER__NEW_COMPANY_FOLDER` | none                 |
-| `naming.template`               | `SCANSORT_NAMING__TEMPLATE`            | `{date:%Y%m%d}_{title}` |
+| `naming.template`               | `SCANSORT_NAMING__TEMPLATE`            | `{date:%Y%m%d}_{title}_{type}` |
 | `webui.password_hash`           | `SCANSORT_WEBUI__PASSWORD_HASH`        | — (required)            |
 | `webui.session_secret`          | `SCANSORT_WEBUI__SESSION_SECRET`       | generated and stored in `/data` |
 | `webui.date_format`             | `SCANSORT_WEBUI__DATE_FORMAT`          | `%d.%m.%Y` (ISO: `%Y-%m-%d`) |
@@ -271,8 +272,15 @@ Notes:
 - The configuration is validated on startup. Typos and invalid values stop scansort with a clear
   message.
 - `naming.template` placeholders: `{date:<strftime>}`, `{sender}`, `{title}` (last non-year
-  folder of the target, editable in the UI) and `{year}`. An empty placeholder is dropped
-  together with its separator.
+  folder of the target, editable in the UI), `{type}` (document type found in the text) and
+  `{year}`. An empty placeholder is dropped together with its separator, so a document without
+  a recognized type is named `20260105_Swisscom.pdf`.
+- `extraction.document_types` lists the types `{type}` looks for, with German and English
+  defaults (Rechnung, Nebenkostenabrechnung, Abrechnung, Mahnung, Kontoauszug, Vertrag, Invoice,
+  Receipt, Statement, …). They are matched as whole words near the top of the document
+  (`Rechnungsnummer` is no `Rechnung`); a heading-like short line wins over running text, then
+  the earliest. Setting the list replaces the defaults, so copy them when you only want to add
+  some. The detail view shows the types it found as chips to pick from.
 - The review and trash folders are always excluded, by their exact configured paths.
   `classifier.exclude` adds more globs, matched against paths relative to `root`
   (e.g. `Archiv/Alt/**`; `**/_*` would exclude every `_`-prefixed folder at any depth).

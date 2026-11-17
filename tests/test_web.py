@@ -120,9 +120,9 @@ def test_queue_and_accept_htmx(client, svc, settings):
     token = login(client)
     doc_id = add_doc(svc, settings)
     page = client.get("/")
-    assert "20250201_Steuern.pdf" in page.text and "Steuern/2025" in page.text
+    assert "20250201_Steuern_Steuererklärung.pdf" in page.text and "Steuern/2025" in page.text
     r = client.post(f"/doc/{doc_id}/accept", headers={"HX-Request": "true", "X-CSRF-Token": token})
-    assert r.status_code == 200 and "Filed to /Dokumente/Steuern/2025/20250201_Steuern.pdf" in r.text
+    assert r.status_code == 200 and "Filed to /Dokumente/Steuern/2025/20250201_Steuern_Steuererklärung.pdf" in r.text
     with svc.db.session() as s:
         assert s.get(Document, doc_id).status == Status.FILED
 
@@ -206,3 +206,25 @@ def test_date_chips(client, svc, settings):
     today = date.today().strftime("%d.%m.%Y")
     assert chips == [(" active", "05.03.2025"), ("", "04.04.2025"), ("", today)]
     assert "· Rechnungsdatum" in page
+
+
+def test_type_chips_and_suggest(client, svc, settings):
+    login(client)
+    doc_id = add_doc(svc, settings, lines=("Swisscom AG", "Rechnung", "Datum 05.03.2025", "Gutschrift folgt"))
+    page = client.get(f"/doc/{doc_id}").text
+    chips = re.findall(r'class="chip( active)?" data-type="([^"]+)"', page)
+    assert chips == [(" active", "Rechnung"), ("", "Gutschrift")]
+    url = f"/doc/{doc_id}/suggest"
+    assert client.get(url, params={"label": "Briefe"}).json()["filename"] == "20250305_Briefe_Rechnung.pdf"
+    assert client.get(url, params={"label": "Briefe", "type": "Gutschrift"}).json()["filename"] == \
+        "20250305_Briefe_Gutschrift.pdf"
+    assert client.get(url, params={"label": "Briefe", "type": ""}).json()["filename"] == "20250305_Briefe.pdf"
+
+
+def test_no_type_chips_without_type_field(client, svc, settings):
+    settings.naming.template = "{date:%Y%m%d}_{title}"
+    app = create_app(settings, services=svc, background=False)
+    with TestClient(app, base_url="http://testserver") as c:
+        login(c)
+        doc_id = add_doc(svc, settings, lines=("Rechnung", "Datum 05.03.2025"))
+        assert 'id="type-chips"' not in c.get(f"/doc/{doc_id}").text

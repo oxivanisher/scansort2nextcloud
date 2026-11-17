@@ -37,6 +37,7 @@ extraction:
       patterns: ["swisscom"]
     - name: CSS
       patterns: ["css versicherung", "css kranken"]
+  # document_types: [Rechnung, Abrechnung, Invoice, ...]  # for {type}; replaces the built-in de/en list
 
 classifier:
   retrain_cron: "0 3 * * *"     # nightly archive sync + retrain
@@ -53,7 +54,7 @@ classifier:
       label: "Steuern/{year}"
 
 naming:
-  template: "{date:%Y%m%d}_{title}"  # e.g. 20260122_Stromrechnungen.pdf
+  template: "{date:%Y%m%d}_{title}_{type}"  # e.g. 20260122_Swisscom_Rechnung.pdf
   max_length: 120
 
 webui:

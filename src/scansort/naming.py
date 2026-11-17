@@ -51,6 +51,11 @@ def render_template(template: str, values: dict) -> str:
     return prefix + "".join(out) + suffix
 
 
+def uses_type(template: str) -> bool:
+    """True if the template has a ``{type}`` field."""
+    return any(field == "type" for _lit, field, _spec, _conv in _formatter.parse(template))
+
+
 def sanitize_filename(name: str, max_length: int = 120, ext: str = ".pdf", fallback: str = "Scan") -> str:
     name = unicodedata.normalize("NFC", name)
     if name.lower().endswith(ext):
@@ -71,13 +76,18 @@ def build_filename(
     doc_date: date | None,
     sender: str | None,
     title: str | None,
+    doc_type: str | None = None,
     max_length: int = 120,
     fallback_title: str = "Scan",
 ) -> str:
+    if not title:
+        # "20260122_Rechnung", not "20260122_Scan_Rechnung", when only the type is known
+        title = "" if doc_type and uses_type(template) else fallback_title
     values = {
         "date": doc_date,
         "sender": sender or "",
-        "title": title or fallback_title,
+        "title": title,
+        "type": doc_type or "",
         "year": doc_date.year if doc_date else "",
     }
     return sanitize_filename(render_template(template, values), max_length, fallback=fallback_title)

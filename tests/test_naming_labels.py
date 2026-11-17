@@ -3,7 +3,7 @@ from datetime import date
 import pytest
 
 from scansort.labels import LabelRules, resolve, title_from_label
-from scansort.naming import build_filename, render_template, sanitize_filename
+from scansort.naming import build_filename, render_template, sanitize_filename, uses_type
 from scansort.webdav import collision_candidates
 
 T = "{date:%Y-%m-%d}_{sender}_{title}"
@@ -86,3 +86,17 @@ def test_resolve_and_title():
     assert title_from_label("Steuern/{year}") == "Steuern"
     assert title_from_label("Versicherung/Krankenkasse") == "Krankenkasse"
     assert title_from_label(None) == ""
+
+
+def test_build_filename_with_type():
+    t = "{date:%Y%m%d}_{title}_{type}"
+    d = date(2026, 1, 22)
+    assert build_filename(t, doc_date=d, sender=None, title="Swisscom", doc_type="Rechnung") == \
+        "20260122_Swisscom_Rechnung.pdf"
+    assert build_filename(t, doc_date=d, sender=None, title="Swisscom", doc_type=None) == "20260122_Swisscom.pdf"
+    assert build_filename(t, doc_date=d, sender=None, title=None, doc_type="Rechnung") == "20260122_Rechnung.pdf"
+    assert build_filename(t, doc_date=d, sender=None, title=None, doc_type=None) == "20260122_Scan.pdf"
+    # without {type} in the template the title still falls back
+    assert build_filename("{date:%Y%m%d}_{title}", doc_date=d, sender=None, title=None, doc_type="Rechnung") == \
+        "20260122_Scan.pdf"
+    assert uses_type(t) and uses_type("{type:.10}") and not uses_type("{date}_{title}_type")

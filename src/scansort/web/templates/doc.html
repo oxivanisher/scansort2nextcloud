@@ -86,7 +86,7 @@
         <label>Date <input type="text" name="doc_date" id="doc-date" value="{{ doc.doc_date|d }}" placeholder="{{ date_placeholder }}" inputmode="numeric" size="10" autocomplete="off">
           {% if doc.doc_date_guessed %}<span class="badge muted">guessed</span>{% endif %}</label>
         {% set chips = date_choices | map(attribute='value') | list %}
-        <div class="date-chips" id="date-chips" role="group" aria-label="Dates found in the document">
+        <div class="chips" id="date-chips" role="group" aria-label="Dates found in the document">
           {% for c in date_choices %}
           <button type="button" class="chip{{ ' active' if c.value == doc.doc_date }}" data-date="{{ c.value|d }}"
                   title="{{ ('after “%s”' % c.keyword) if c.keyword else 'found in text' }}">{{ c.value|d }}{% if c.keyword %} <span class="muted">· {{ c.keyword }}</span>{% endif %}</button>
@@ -96,6 +96,15 @@
           {% endif %}
         </div>
         <label>Filename <input type="text" name="filename" id="filename" value="{{ doc.proposed_name }}" required></label>
+        {% if type_choices %}
+        {% set in_name = type_choices | selectattr('name', 'in', doc.proposed_name) | map(attribute='name') | first %}
+        <div class="chips" id="type-chips" role="group" aria-label="Document types found in the text">
+          {% for c in type_choices %}
+          <button type="button" class="chip{{ ' active' if c.name == in_name }}" data-type="{{ c.name }}"
+                  title="{{ 'heading' if c.heading else 'found in text' }} · click again to leave it out">{{ c.name }}</button>
+          {% endfor %}
+        </div>
+        {% endif %}
         <div class="target">→ <code id="target">{{ target or '(choose a folder)' }}</code></div>
       </fieldset>
 

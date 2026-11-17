@@ -12,6 +12,7 @@
   const target = document.getElementById("target");
   const search = document.getElementById("folder-search");
   const list = document.getElementById("folder-list");
+  const typeChips = document.getElementById("type-chips");
   let filenameEdited = false;
 
   const selectedLabel = () => form?.querySelector('input[name="label"]:checked')?.value || "";
@@ -19,6 +20,7 @@
   async function refreshSuggestion() {
     if (!form) return;
     const params = new URLSearchParams({ label: selectedLabel(), date: dateInput?.value || "" });
+    if (typeChips) params.set("type", typeChips.querySelector(".chip.active")?.dataset.type || "");
     try {
       const res = await fetch(`/doc/${docId}/suggest?${params}`, { headers: { Accept: "application/json" } });
       if (!res.ok) return;
@@ -41,6 +43,16 @@
     refreshSuggestion();
   });
   dateInput?.addEventListener("input", markActiveChip);
+
+  // type chips: click to put a document type into the filename, click the active one to leave it out
+  typeChips?.addEventListener("click", (ev) => {
+    const chip = ev.target.closest(".chip");
+    if (!chip) return;
+    const on = !chip.classList.contains("active");
+    typeChips.querySelectorAll(".chip").forEach((c) => c.classList.toggle("active", on && c === chip));
+    filenameEdited = false;  // an explicit choice: rebuild the filename
+    refreshSuggestion();
+  });
 
   if (form) {
     filename.addEventListener("input", () => { filenameEdited = true; });

@@ -151,10 +151,12 @@ For each ready file:
 | `doc_date` | Regex candidates (`dd.mm.yyyy`, `d. Monat yyyy`, ISO), parsed with `dateparser` (languages from config). Prefer dates near keywords like `Datum`, `Rechnungsdatum`, `Date`. Reject future dates and dates before `extraction.min_year`. | Fallback: ingest date, flagged as "guessed". |
 | `sender` | Optional: match against `extraction.known_senders` (name + aliases/regex) from config. Later: learned from the label path. | Empty if unknown. |
 | `amount` | Optional: regex for `CHF`/`EUR` amounts near `Total`, `Betrag`, `zu bezahlen`. | Display only. |
+| `type` | Keywords from `extraction.document_types` (German + English defaults), whole words, case-insensitive, in the first 2000 characters. A match on a short line (≤ keyword + 30 chars, a heading) ranks first, then the earliest, then the longer keyword. Not stored; recomputed from the text. | Empty if none. The UI offers the found types as chips. |
 
 ### 6.2 Filename
 
-- Template from `naming.template`, default `{date:%Y%m%d}_{title}` (the company is in the folder path, so `{sender}` is left out).
+- Template from `naming.template`, default `{date:%Y%m%d}_{title}_{type}` (the company is in the folder path, so `{sender}` is left out).
+- `{title}` falls back to `naming.default_title` (`Scan`) only when there is no `{type}` either.
 - `title` defaults to the last non-year segment of the proposed label (e.g. `Krankenkasse`). The user can edit it in the UI.
 - Empty placeholders and their adjacent separators are dropped.
 - Sanitize: no `/ \ : * ? " < > |`, collapse whitespace, max length `naming.max_length` (default 120), always ends in `.pdf`.
@@ -366,7 +368,7 @@ classifier:
       label: "Steuern/{year}"
 
 naming:
-  template: "{date:%Y%m%d}_{title}"
+  template: "{date:%Y%m%d}_{title}_{type}"
   max_length: 120
 
 webui:

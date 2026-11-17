@@ -45,9 +45,9 @@ def test_ingest_rule_proposal_and_duplicates(svc, nc, settings):
     with svc.db.session() as s:
         da, db_ = s.get(Document, a), s.get(Document, b)
         assert da.top_proposal.label == "Steuern/{year}" and da.top_proposal.source == "rule"
-        assert da.proposed_name == "20250202_Steuern.pdf"
+        assert da.proposed_name == "20250202_Steuern_Steuererklärung.pdf"
         assert db_.duplicate_of == a
-        assert db_.nc_path == "/Dokumente/_Review/20250202_Steuern (2).pdf"
+        assert db_.nc_path == "/Dokumente/_Review/20250202_Steuern_Steuererklärung (2).pdf"
 
 
 def test_ingest_no_text_without_ocr(svc, settings):
