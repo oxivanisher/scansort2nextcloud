@@ -312,7 +312,9 @@ Notes:
 ## Using the web UI
 
 - **Review queue (`/`):** all pending scans, oldest first, with thumbnail, date, proposed name,
-  top proposal and confidence. Click **Accept** to file a document with its top proposal.
+  top proposal and confidence. Click **Accept** to file a document with its top proposal. The
+  page updates by itself when new scans arrive and shows scans that are still being processed (it
+  checks only the local database and watch folder, not Nextcloud).
 - **Detail view (`/doc/<id>`):** PDF preview, proposals, folder search, new folder, editable date
   and filename, and the extracted text.
 
@@ -324,8 +326,9 @@ Notes:
 | `/`      | Search folders                 |
 
 - **Status (`/status`):** model statistics (samples, labels, cross-validated accuracy), the last
-  archive sync and reconciliation, failed ingests with *Retry now*, and buttons for *Sync archive
-  & retrain now* and *Refresh folders*.
+  archive sync, failed ingests with *Retry now*, and the background jobs *Sync archive & retrain*,
+  *Refresh folders* and *Reconcile*, each with a short explanation, its last and next run, and a
+  button to start it. The page updates live and shows which jobs are running.
 
 scansort is meant to run behind your reverse proxy (TLS). If it does, set
 `webui.forwarded_allow_ips` to the proxy's IP address so that HTTPS is detected and the cookie

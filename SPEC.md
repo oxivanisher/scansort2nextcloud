@@ -283,6 +283,7 @@ settings_kv              -- small runtime state (model version, last sync, …)
 - Lists pending documents, oldest first: thumbnail or first-page preview, date, proposed name, top proposal with confidence bar, and a duplicate badge.
 - Each row has a **one-click "Accept"** button that files with the top proposal and the proposed name.
 - Clicking a row opens the detail view.
+- Updates itself: polls `/queue/live` every few seconds (only while the tab is visible) and swaps in a fresh list when a new document arrived or the watch folder changed; the server answers `204` otherwise. Only the database and the local watch folder are read.
 
 **Document detail (`/doc/{id}`)**
 - Left: PDF preview, streamed from Nextcloud through the app (`/doc/{id}/pdf`); the browser's built-in PDF viewer is sufficient.
@@ -300,7 +301,8 @@ settings_kv              -- small runtime state (model version, last sync, …)
 - Model info: training date, number of samples and labels, validation accuracy.
 - Last archive sync, last reconciliation.
 - Failed ingests with error messages and a "retry now" button.
-- Buttons: "Sync archive & retrain now", "Refresh folders".
+- Jobs "Sync archive & retrain", "Refresh folders", "Reconcile": explanation, last/next run, running/queued state, start button (disabled while the job runs). A job runs at most once at a time.
+- Updates live: polls `/status/live` (every 2 s while a job runs or a scan is being processed, else 10 s); `204` when unchanged.
 
 ### 9.3 Filing action (server side)
 

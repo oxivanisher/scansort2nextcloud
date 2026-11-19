@@ -197,6 +197,13 @@ class IngestWorker:
             log.error("cannot scan watch dir", extra={"error": str(exc)})
             return []
 
+    def incoming(self) -> tuple[int, int]:
+        """``(files waiting in the watch folder, files being processed right now)``. Local only."""
+        files = self.candidates()
+        with self._lock:
+            processing = len(self._in_flight)
+        return max(len(files) - processing, 0), processing
+
     def scan(self) -> list[Path]:
         """One pass: returns the files that were submitted for ingest."""
         stable = self.svc.settings.watch.stable_seconds

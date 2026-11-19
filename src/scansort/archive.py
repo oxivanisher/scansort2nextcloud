@@ -188,7 +188,6 @@ def sync_and_train(svc: Services) -> bool:
         log.info("archive sync already running")
         return False
     try:
-        svc.db.set_kv("job_running", "sync")
         sync_archive(svc)
         svc.db.set_kv("last_archive_sync_error", "")
         retrain(svc)
@@ -202,7 +201,6 @@ def sync_and_train(svc: Services) -> bool:
         log.exception("archive sync failed")
         return False
     finally:
-        svc.db.set_kv("job_running", "")
         svc.sync_lock.release()
 
 

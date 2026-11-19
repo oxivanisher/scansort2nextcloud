@@ -1,0 +1,85 @@
+{# Self-polling fragment: re-fetched every few seconds (faster while something runs); the server answers 204 when nothing changed. #}
+{% set vis = "[document.visibilityState === 'visible']" %}
+<div id="status-live" hx-get="/status/live?v={{ live_key }}" hx-swap="outerHTML"
+     hx-trigger="every {{ '2s' if busy else '10s' }} {{ vis }}, visibilitychange from:document {{ vis }}">
+<div class="cards">
+  <div class="card">
+    <h2>Jobs</h2>
+    <div class="jobs">
+    {% for j in jobs %}
+      <div class="job">
+        <div class="job-head">
+          <form method="post" action="{{ j.url }}" hx-post="{{ j.url }}" hx-target="#status-live" hx-swap="outerHTML">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button{% if loop.first %} class="primary"{% endif %} title="{{ j.help }}"{% if j.state != 'idle' %} disabled{% endif %}>{{ j.title }}</button>
+          </form>
+          {% if j.state == 'running' %}<span class="badge run"><span class="spinner" aria-hidden="true"></span>running · {{ j.since|elapsed }}</span>
+          {% elif j.state == 'queued' %}<span class="badge run">starting…</span>{% endif %}
+        </div>
+        <p class="small muted job-help">{{ j.help }}</p>
+        <p class="small muted">Last run: {{ j.last_run|dt }}{% if j.next %} · next: {{ j.next|dt }}{% endif %}</p>
+      </div>
+    {% endfor %}
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Classifier</h2>
+    {% if model %}
+    <dl>
+      <dt>Trained</dt><dd>{{ model.trained_at|dt }}</dd>
+      <dt>Samples</dt><dd>{{ model.samples }}</dd>
+      <dt>Labels</dt><dd>{{ model.labels }}</dd>
+      <dt>CV accuracy</dt><dd>{{ model.cv_accuracy|pct if model.cv_accuracy is not none else '—' }}</dd>
+      {% if model.skipped_labels %}<dt>Too few samples</dt><dd>{{ model.skipped_labels|length }} folder(s)</dd>{% endif %}
+    </dl>
+    {% else %}
+    <p class="muted">No model yet. {{ model_status or 'Run an archive sync to train one.' }}</p>
+    {% endif %}
+    {% if model and model_status and model_status != 'ok' %}<p class="muted">Last training: {{ model_status }}</p>{% endif %}
+  </div>
+
+  <div class="card">
+    <h2>Archive</h2>
+    <dl>
+      <dt>Last sync</dt><dd>{{ kv.get('last_archive_sync')|dt }}</dd>
+      {% if sync_stats %}
+      <dt>Files</dt><dd>{{ sync_stats.files }} in {{ sync_stats.folders }} folders</dd>
+      <dt>Downloaded</dt><dd>{{ sync_stats.downloaded }} ({{ sync_stats.failed }} failed, {{ sync_stats.seconds }}s)</dd>
+      {% endif %}
+    </dl>
+    {% if kv.get('last_archive_sync_error') %}<p class="error small">Last error: {{ kv.get('last_archive_sync_error') }}</p>{% endif %}
+  </div>
+
+  <div class="card">
+    <h2>System</h2>
+    <dl>
+      <dt>Nextcloud</dt><dd>{% if nc_ok %}<span class="ok">reachable</span>{% else %}<span class="error">unreachable</span>{% endif %} <span class="muted">{{ settings.nextcloud.url }}</span></dd>
+      <dt>Watcher</dt><dd>{% if watcher_running %}<span class="ok">running</span>{% else %}<span class="error">stopped</span>{% endif %} <span class="muted">{{ settings.watch.dir }}</span></dd>
+      <dt>Incoming</dt><dd>{% if incoming %}{{ incoming }} file(s){% if processing %}, {{ processing }} being processed <span class="spinner" aria-hidden="true"></span>{% endif %}{% else %}none{% endif %}</dd>
+      <dt>OCR</dt><dd>{% if not settings.ocr.enabled %}disabled{% elif ocr_available %}<span class="ok">available</span> ({{ settings.ocr.languages|join('+') }}){% else %}<span class="error">ocrmypdf not found</span>{% endif %}</dd>
+      <dt>Documents</dt><dd>{% for st, n in counts.items() %}{{ st.replace('_',' ') }}: {{ n }}{% if not loop.last %} · {% endif %}{% else %}none yet{% endfor %}</dd>
+    </dl>
+  </div>
+</div>
+
+<h2>Failed ingests</h2>
+{% if attempts %}
+<table class="list">
+  <thead><tr><th>File</th><th>Attempts</th><th>Next try</th><th>Error</th><th></th></tr></thead>
+  <tbody>
+  {% for a in attempts %}
+  <tr>
+    <td><code>{{ a.local_path }}</code></td>
+    <td>{{ a.attempts }}</td>
+    <td>{{ a.next_try_at|dt }}</td>
+    <td class="error small">{{ a.last_error }}</td>
+    <td><form method="post" action="/status/retry/{{ a.id }}"><input type="hidden" name="csrf_token" value="{{ csrf_token }}"><button>Retry now</button></form></td>
+  </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">None.</p>
+{% endif %}
+</div>

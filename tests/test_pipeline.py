@@ -109,3 +109,14 @@ def test_worker_thread_end_to_end(svc, nc, settings):
         assert nc.files_in("/Dokumente/_Review")
     finally:
         worker.stop()
+
+
+def test_worker_incoming_counts(svc, settings):
+    from scansort.ingest import IngestWorker
+
+    worker = IngestWorker(svc)
+    settings.watch.dir.mkdir(parents=True, exist_ok=True)
+    assert worker.incoming() == (0, 0)
+    (settings.watch.dir / "a.pdf").write_bytes(b"%PDF-1.4")
+    (settings.watch.dir / ".hidden.pdf").write_bytes(b"%PDF-1.4")
+    assert worker.incoming() == (1, 0)

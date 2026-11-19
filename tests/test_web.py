@@ -228,3 +228,61 @@ def test_no_type_chips_without_type_field(client, svc, settings):
         login(c)
         doc_id = add_doc(svc, settings, lines=("Rechnung", "Datum 05.03.2025"))
         assert 'id="type-chips"' not in c.get(f"/doc/{doc_id}").text
+
+
+def _live_key(html: str, path: str) -> str:
+    return re.search(rf'hx-get="{path}\?v=([^"]+)"', html).group(1)
+
+
+def test_queue_live_refreshes_only_on_new_documents(client, svc, settings):
+    token = login(client)
+    first = add_doc(svc, settings)
+    page = client.get("/")
+    key = _live_key(page.text, "/queue/live")
+    assert client.get(f"/queue/live?v={key}").status_code == 204
+
+    # accepting a row on the page does not trigger a refresh (keeps the "Filed to" confirmation)
+    client.post(f"/doc/{first}/accept", data={"csrf_token": token}, headers={"HX-Request": "true"})
+    assert client.get(f"/queue/live?v={key}").status_code == 204
+
+    add_doc(svc, settings, lines=("Rechnung Swisscom", "Datum 03.03.2025"), name="b.pdf")
+    r = client.get(f"/queue/live?v={key}")
+    assert r.status_code == 200 and 'id="queue-live"' in r.text and "<title>Review (1)" in r.text
+    assert _live_key(r.text, "/queue/live") != key
+
+
+def test_status_live_and_htmx_job_trigger(client, svc):
+    token = login(client)
+    page = client.get("/status")
+    assert "Refresh folders" in page.text and "folder picker" in page.text  # explanations shown
+    key = _live_key(page.text, "/status/live")
+    assert client.get(f"/status/live?v={key}").status_code == 204
+
+    r = client.post("/status/reconcile", data={"csrf_token": token}, headers={"HX-Request": "true"})
+    assert r.status_code == 200 and 'id="status-live"' in r.text
+    assert svc.db.get_kv("last_reconcile")
+    # the last-run time changed, so the polled fragment differs now
+    assert client.get(f"/status/live?v={key}").status_code == 200
+
+
+def test_status_shows_running_job(client, svc):
+    import threading
+
+    login(client)
+    started, release = threading.Event(), threading.Event()
+
+    def slow(_svc):
+        started.set()
+        release.wait(5)
+
+    t = threading.Thread(target=svc.jobs.run, args=("sync", slow, svc))
+    t.start()
+    try:
+        assert started.wait(5)
+        assert svc.jobs.run("sync", slow, svc) is False  # second run is skipped
+        html = client.get("/status").text
+        assert "running ·" in html and "every 2s" in html
+    finally:
+        release.set()
+        t.join()
+    assert "running ·" not in client.get("/status").text

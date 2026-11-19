@@ -115,3 +115,17 @@ kbd { font-size: .75rem; border: 1px solid var(--border); border-radius: 3px; pa
   .panel { border-left: 0; }
   .queue .thumb { display: none; }
 }
+
+/* live status: jobs + spinners */
+.jobs { display: grid; gap: .9rem; }
+.job p { margin: .25rem 0 0; }
+.job-head { display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
+.job-head form { margin: 0; }
+.job-help { max-width: 60ch; }
+.badge.run { color: var(--accent); border-color: var(--accent); display: inline-flex; align-items: center; gap: .35rem; }
+.spinner { display: inline-block; width: .8em; height: .8em; border: 2px solid currentColor;
+           border-right-color: transparent; border-radius: 50%; animation: spin .8s linear infinite;
+           vertical-align: -.1em; margin-right: .3rem; }
+.badge .spinner { margin-right: 0; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 2.4s; } }

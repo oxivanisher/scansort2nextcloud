@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 import hmac
 import json
 import logging
 import secrets
 from contextlib import asynccontextmanager
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from urllib.parse import quote
 
@@ -15,6 +16,7 @@ from fastapi import Depends, FastAPI, Form, Query, Request
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from markupsafe import Markup
 from sqlalchemy import func, select
 from sqlalchemy.orm import selectinload
 
@@ -95,7 +97,19 @@ def _parse_date(value: str | None, date_format: str = "%d.%m.%Y") -> date | None
         return None
 
 
+def _elapsed(value: datetime | None) -> str:
+    if value is None:
+        return ""
+    secs = max(int((datetime.now(UTC) - value).total_seconds()), 0)
+    if secs < 60:
+        return f"{secs}s"
+    if secs < 3600:
+        return f"{secs // 60} min {secs % 60:02d}s"
+    return f"{secs // 3600} h {secs % 3600 // 60:02d} min"
+
+
 templates.env.filters["pct"] = _pct
+templates.env.filters["elapsed"] = _elapsed
 
 
 def create_app(settings: Settings, services: Services | None = None, background: bool = True) -> FastAPI:
@@ -212,6 +226,22 @@ def create_app(settings: Settings, services: Services | None = None, background:
         }
         return templates.TemplateResponse(request, name, context, status_code=status_code)
 
+    LIVE_KEY = "@@live-key@@"
+
+    def live_fragment(request: Request, name: str, ctx: dict, previous: str | None = None) -> Response:
+        """Render a self-polling fragment; ``204`` (htmx: no swap) if it equals the client's version.
+
+        Without a ``live_key`` in ``ctx`` the key is a hash of the rendered HTML. Unlike
+        :func:`render` this never consumes flash messages.
+        """
+        context = {"request": request, "csrf_token": request.state.session.get("csrf", ""),
+                   "settings": settings, "live_key": LIVE_KEY, **ctx}
+        html = templates.get_template(name).render(context)
+        key = ctx.get("live_key") or hashlib.sha1(html.encode()).hexdigest()[:16]
+        if previous is not None and key == previous:
+            return Response(status_code=204)
+        return HTMLResponse(html.replace(LIVE_KEY, key), headers={"Cache-Control": "no-store"})
+
     def get_doc(doc_id: int) -> Document | None:
         with svc.db.session() as sess:
             return sess.scalar(
@@ -274,15 +304,33 @@ def create_app(settings: Settings, services: Services | None = None, background:
         return RedirectResponse("/login", status_code=303)
 
     # --- queue -----------------------------------------------------------------------------
-    @app.get("/", response_class=HTMLResponse)
-    def queue(request: Request, _user: str = Auth):
+    def queue_context() -> dict:
         with svc.db.session() as sess:
             docs = sess.scalars(
                 select(Document).options(selectinload(Document.proposals))
                 .where(Document.status == Status.PENDING).order_by(Document.created_at, Document.id)
             ).all()
             failed = sess.scalar(select(func.count()).select_from(IngestAttempt)) or 0
-        return render(request, "queue.html", {"docs": docs, "failed": failed, "resolve": resolve})
+            last_id = sess.scalar(select(func.max(Document.id))) or 0
+        waiting, processing = svc.worker.incoming() if svc.worker is not None else (0, 0)
+        waiting = max(waiting - failed, 0)  # files with a failed attempt are reported separately
+        # Changes only when something *new* arrives (not when a row is accepted on this page),
+        # so an accepted row keeps showing its "Filed to …" confirmation.
+        live_key = f"{last_id}.{waiting}.{processing}.{failed}"
+        return {"docs": docs, "failed": failed, "waiting": waiting, "processing": processing,
+                "live_key": live_key, "resolve": resolve}
+
+    @app.get("/", response_class=HTMLResponse)
+    def queue(request: Request, _user: str = Auth):
+        return render(request, "queue.html", queue_context())
+
+    @app.get("/queue/live", response_class=HTMLResponse)
+    def queue_live(request: Request, v: str = "", _user: str = Auth):
+        """Polled by the queue page; reads only the database and the local watch folder."""
+        ctx = queue_context()
+        if ctx["live_key"] == v:
+            return Response(status_code=204)  # htmx: nothing to swap
+        return live_fragment(request, "_queue.html", {**ctx, "with_title": True})
 
     @app.post("/doc/{doc_id}/accept", dependencies=[Csrf])
     def accept(request: Request, doc_id: int, _user: str = Auth):
@@ -434,8 +482,35 @@ def create_app(settings: Settings, services: Services | None = None, background:
         return {"label": label, "target": target_folder(svc, label, d)}
 
     # --- status ----------------------------------------------------------------------------
-    @app.get("/status", response_class=HTMLResponse)
-    def status_page(request: Request, _user: str = Auth):
+    reconcile_minutes = max(round(settings.nextcloud.reconcile_interval / 60), 1)
+    job_info = {
+        "sync": {
+            "title": "Sync archive & retrain",
+            "url": "/status/sync",
+            "help": "Walks all folders in Nextcloud, downloads new or changed PDFs to read their text and "
+                    "retrains the classifier with them. Afterwards the proposals of documents waiting for "
+                    "review are recalculated. Includes a folder refresh. Runs nightly; the first run on a "
+                    "large archive can take a long time.",
+            "last": "last_archive_sync",
+        },
+        "refresh_folders": {
+            "title": "Refresh folders",
+            "url": "/status/refresh-folders",
+            "help": "Re-reads only the folder structure from Nextcloud (no downloads, no retraining), so "
+                    "folders you created or renamed in Nextcloud show up in the folder picker. Quick.",
+            "last": "last_folder_refresh",
+        },
+        "reconcile": {
+            "title": "Reconcile",
+            "url": "/status/reconcile",
+            "help": "Checks where each document waiting for review is now. Documents you moved out of the "
+                    "review folder or deleted directly in Nextcloud are removed from the queue. Runs "
+                    f"automatically every {reconcile_minutes} min.",
+            "last": "last_reconcile",
+        },
+    }
+
+    def status_context() -> dict:
         kv = svc.db.all_kv()
         with svc.db.session() as sess:
             attempts = sess.scalars(select(IngestAttempt).order_by(IngestAttempt.next_try_at)).all()
@@ -445,7 +520,17 @@ def create_app(settings: Settings, services: Services | None = None, background:
         except ValueError:
             sync_stats = None
         sched = svc.scheduler
-        return render(request, "status.html", {
+        running, queued = svc.jobs.running(), svc.jobs.queued()
+        jobs = []
+        for name, info in job_info.items():
+            state = "running" if name in running else "queued" if name in queued else "idle"
+            nxt = None
+            if sched is not None:
+                nxt = sched.next_run("nightly_sync" if name == "sync" else name)
+            jobs.append({**info, "name": name, "state": state, "since": running.get(name),
+                         "last_run": kv.get(info["last"]), "next": nxt})
+        waiting, processing = svc.worker.incoming() if svc.worker is not None else (0, 0)
+        return {
             "model": svc.model.info,
             "model_status": kv.get("model_status"),
             "kv": kv,
@@ -453,41 +538,55 @@ def create_app(settings: Settings, services: Services | None = None, background:
             "attempts": attempts,
             "counts": counts,
             "watcher_running": bool(svc.worker and svc.worker.running),
+            "incoming": waiting + processing,
+            "processing": processing,
             "ocr_available": ocr_available(),
-            "nc_ok": svc.nextcloud_reachable(max_age=30),
-            "next_sync": sched.next_run("nightly_sync") if sched else None,
-            "job_running": kv.get("job_running") or "",
-        })
+            "nc_ok": svc.nextcloud_reachable(max_age=60),
+            "jobs": jobs,
+            "busy": any(j["state"] != "idle" for j in jobs) or processing > 0,
+        }
 
-    def _run_or_schedule(trigger: str, inline) -> None:
-        if svc.scheduler is not None:
-            getattr(svc.scheduler, trigger)()
+    def render_status(request: Request, previous: str | None = None) -> Response:
+        return live_fragment(request, "_status.html", status_context(), previous)
+
+    @app.get("/status", response_class=HTMLResponse)
+    def status_page(request: Request, _user: str = Auth):
+        live = live_fragment(request, "_status.html", status_context())
+        return render(request, "status.html", {"live_html": Markup(live.body.decode())})
+
+    @app.get("/status/live", response_class=HTMLResponse)
+    def status_live(request: Request, v: str = "", _user: str = Auth):
+        """Polled by the status page (faster while a job runs)."""
+        return render_status(request, v)
+
+    def _start_job(request: Request, name: str, message: str) -> Response:
+        if name in svc.jobs.running():
+            message, kind = f"{job_info[name]['title']} is already running.", "info"
         else:
-            inline(svc)
+            kind = "info"
+            if svc.scheduler is not None:
+                getattr(svc.scheduler, {"sync": "trigger_sync", "refresh_folders": "trigger_refresh_folders",
+                                        "reconcile": "trigger_reconcile"}[name])()
+            else:
+                from scansort.scheduler import JOBS
+
+                svc.jobs.run(name, JOBS[name], svc)
+        if request.headers.get("HX-Request"):
+            return render_status(request)
+        flash(request, message, kind)
+        return RedirectResponse("/status", status_code=303)
 
     @app.post("/status/sync", dependencies=[Csrf])
     def status_sync(request: Request, _user: str = Auth):
-        from scansort.archive import sync_and_train
-
-        _run_or_schedule("trigger_sync", sync_and_train)
-        flash(request, "Archive sync & retraining started. This can take a while.", "info")
-        return RedirectResponse("/status", status_code=303)
+        return _start_job(request, "sync", "Archive sync & retraining started. This can take a while.")
 
     @app.post("/status/refresh-folders", dependencies=[Csrf])
     def status_refresh(request: Request, _user: str = Auth):
-        from scansort.archive import refresh_folders
-
-        _run_or_schedule("trigger_refresh_folders", refresh_folders)
-        flash(request, "Folder refresh started.", "info")
-        return RedirectResponse("/status", status_code=303)
+        return _start_job(request, "refresh_folders", "Folder refresh started.")
 
     @app.post("/status/reconcile", dependencies=[Csrf])
     def status_reconcile(request: Request, _user: str = Auth):
-        from scansort.filing import reconcile_all
-
-        _run_or_schedule("trigger_reconcile", reconcile_all)
-        flash(request, "Reconciliation started.", "info")
-        return RedirectResponse("/status", status_code=303)
+        return _start_job(request, "reconcile", "Reconciliation started.")
 
     @app.post("/status/retry/{attempt_id}", dependencies=[Csrf])
     def status_retry(request: Request, attempt_id: int, _user: str = Auth):

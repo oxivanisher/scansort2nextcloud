@@ -15,10 +15,14 @@ from scansort.services import Services
 log = logging.getLogger(__name__)
 
 
-def _safe(fn, name):
+JOBS = {"sync": sync_and_train, "refresh_folders": refresh_folders, "reconcile": reconcile_all}
+
+
+def _safe(name):
+    """Run job ``name`` through the tracker (at most one run at a time), logging failures."""
     def run(svc: Services):
         try:
-            fn(svc)
+            svc.jobs.run(name, JOBS[name], svc)
         except Exception:  # noqa: BLE001
             log.exception("job failed", extra={"job": name})
 
@@ -34,11 +38,11 @@ class Scheduler:
     def start(self) -> None:
         s = self.svc.settings
         self._sched.add_job(
-            _safe(sync_and_train, "sync"), CronTrigger.from_crontab(s.classifier.retrain_cron),
+            _safe("sync"), CronTrigger.from_crontab(s.classifier.retrain_cron),
             args=[self.svc], id="nightly_sync",
         )
         self._sched.add_job(
-            _safe(reconcile_all, "reconcile"), "interval", seconds=s.nextcloud.reconcile_interval,
+            _safe("reconcile"), "interval", seconds=s.nextcloud.reconcile_interval,
             args=[self.svc], id="reconcile",
             next_run_time=datetime.now() + timedelta(seconds=30),
         )
@@ -51,20 +55,23 @@ class Scheduler:
         self._sched.shutdown(wait=False)
 
     def trigger_sync(self, delay: float = 0) -> None:
+        self.svc.jobs.queue("sync")
         self._sched.add_job(
-            _safe(sync_and_train, "sync"), "date", args=[self.svc], id="manual_sync",
+            _safe("sync"), "date", args=[self.svc], id="manual_sync",
             replace_existing=True, run_date=datetime.now() + timedelta(seconds=delay),
         )
 
     def trigger_refresh_folders(self) -> None:
+        self.svc.jobs.queue("refresh_folders")
         self._sched.add_job(
-            _safe(refresh_folders, "refresh_folders"), "date", args=[self.svc], id="refresh_folders",
+            _safe("refresh_folders"), "date", args=[self.svc], id="refresh_folders",
             replace_existing=True, run_date=datetime.now(),
         )
 
     def trigger_reconcile(self) -> None:
+        self.svc.jobs.queue("reconcile")
         self._sched.add_job(
-            _safe(reconcile_all, "reconcile"), "date", args=[self.svc], id="manual_reconcile",
+            _safe("reconcile"), "date", args=[self.svc], id="manual_reconcile",
             replace_existing=True, run_date=datetime.now(),
         )
 

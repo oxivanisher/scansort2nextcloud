@@ -6,7 +6,7 @@ import logging
 import shutil
 import threading
 import time
-from datetime import date
+from datetime import UTC, date, datetime
 
 from sqlalchemy import func, select
 
@@ -19,6 +19,44 @@ from scansort.naming import build_filename
 from scansort.webdav import NextcloudClient
 
 log = logging.getLogger(__name__)
+
+
+class JobTracker:
+    """In-process registry of background jobs: which are queued, which run, since when.
+
+    A job name runs at most once at a time; ``run`` skips a call while the same job is running.
+    """
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._running: dict[str, datetime] = {}
+        self._queued: set[str] = set()
+
+    def queue(self, name: str) -> None:
+        with self._lock:
+            self._queued.add(name)
+
+    def run(self, name: str, fn, *args) -> bool:
+        with self._lock:
+            self._queued.discard(name)
+            if name in self._running:
+                log.info("job already running, skipped", extra={"job": name})
+                return False
+            self._running[name] = datetime.now(UTC)
+        try:
+            fn(*args)
+            return True
+        finally:
+            with self._lock:
+                self._running.pop(name, None)
+
+    def running(self) -> dict[str, datetime]:
+        with self._lock:
+            return dict(self._running)
+
+    def queued(self) -> set[str]:
+        with self._lock:
+            return set(self._queued) - set(self._running)
 
 
 class Services:
@@ -44,6 +82,7 @@ class Services:
         )
         self.model = ModelStore(s.model_path)
         self.sync_lock = threading.Lock()
+        self.jobs = JobTracker()
         self.worker = None  # set by app startup (IngestWorker)
         self.scheduler = None  # set by app startup (Scheduler)
         self._review_ready = False

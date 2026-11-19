@@ -1,0 +1,31 @@
+{# Self-polling fragment: refreshes when new documents arrive or the incoming folder changes. Only the database and the local watch folder are checked, never Nextcloud. #}
+{# htmx takes a top-level <title> from the response as the new page title #}
+{% if with_title %}<title>Review ({{ docs|length }}) · scansort</title>{% endif %}
+{% set vis = "[document.visibilityState === 'visible']" %}
+<div id="queue-live" hx-get="/queue/live?v={{ live_key }}" hx-swap="outerHTML"
+     hx-trigger="every {{ '3s' if processing or waiting else '5s' }} {{ vis }}, visibilitychange from:document {{ vis }}">
+<div class="pagehead">
+  <h1>Review queue <span class="count">{{ docs|length }}</span></h1>
+  {% if docs %}<a class="button" href="/doc/{{ docs[0].id }}">Start reviewing →</a>{% endif %}
+</div>
+{% if processing or waiting %}
+  <div class="flash flash-info"><span class="spinner" aria-hidden="true"></span>
+    {% if processing %}Processing {{ processing }} new scan(s){% if waiting %}, {{ waiting }} more waiting{% endif %}…{% else %}{{ waiting }} new scan(s) waiting…{% endif %}
+  </div>
+{% endif %}
+{% if failed %}
+  <div class="flash flash-error">{{ failed }} file(s) could not be ingested. See <a href="/status">Status</a>.</div>
+{% endif %}
+{% if docs %}
+<table class="queue">
+  <tbody>
+  {% for doc in docs %}{% include "_row.html" %}{% endfor %}
+  </tbody>
+</table>
+{% else %}
+<div class="empty card">
+  <p>Nothing to review. 🎉</p>
+  <p class="muted">New scans appear here automatically after OCR.</p>
+</div>
+{% endif %}
+</div>
